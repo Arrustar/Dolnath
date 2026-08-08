@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dolnath Rotating Globe</title>
+<style>
+html, body { margin:0; height:100%; overflow:hidden; background: radial-gradient(circle at 50% 35%, #122756 0%, #060a14 45%, #010207 100%); font-family: Georgia, serif; }
+#app { width:100%; height:100%; position:relative; }
+canvas { display:block; }
+.hud { position:absolute; left:18px; top:18px; color:#edf3ff; background:rgba(8,16,28,0.56); border:1px solid rgba(170,200,255,0.28); border-radius:12px; padding:12px 14px; backdrop-filter:blur(6px); box-shadow:0 6px 24px rgba(0,0,0,0.28); max-width:380px; line-height:1.35; z-index:2; }
+.hud h1 { margin:0 0 8px 0; font-size:22px; letter-spacing:0.03em; }
+.hud p { margin:5px 0; font-size:14px; }
+.badge { display:inline-block; margin-top:7px; padding:4px 8px; border-radius:999px; background:rgba(92,154,255,0.18); border:1px solid rgba(160,205,255,0.32); font-size:12px; }
+.credit { position:absolute; right:14px; bottom:12px; color:rgba(220,230,255,0.82); font-size:12px; background:rgba(6,10,18,0.4); padding:8px 10px; border-radius:10px; z-index:2; }
+.loading { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:white; background:rgba(2,4,8,0.9); z-index:5; font-size:18px; letter-spacing:0.04em; }
+.hint { color:#bfd6ff; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="loading" id="loading">Loading Dolnath...</div>
+  <div class="hud">
+    <h1>Dolnath</h1>
+    <p>A slow rotating globe using your original Dolnath map art as the surface texture.</p>
+    <p class="hint">Drag to rotate, scroll to zoom. Zooming in reveals more of the source map detail, including settlement labels baked into the original art.</p>
+    <p>Azuros appears as a separate floating landmass and drifts independently around the planet.</p>
+    <div class="badge">Auto-rotation enabled</div>
+  </div>
+  <div class="credit">Google Sites / hosted web version</div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(function() {
+  const app = document.getElementById('app');
+  const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  app.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 2000);
+  camera.position.set(0, 0, 22);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.06;
+  controls.minDistance = 9;
+  controls.maxDistance = 42;
+  controls.enablePan = false;
+  controls.rotateSpeed = 0.8;
+
+  scene.add(new THREE.AmbientLight(0x8fb7ff, 0.88));
+  const sun = new THREE.DirectionalLight(0xffffff, 1.45); sun.position.set(12,6,10); scene.add(sun);
+  const rim = new THREE.DirectionalLight(0x5ea2ff, 0.55); rim.position.set(-12,-4,-10); scene.add(rim);
+
+  const starGeo = new THREE.BufferGeometry();
+  const count = 2500;
+  const pos = new Float32Array(count*3);
+  for(let i=0;i<count;i++){
+    const r = 220 + Math.random()*420;
+    const theta = Math.random()*Math.PI*2;
+    const phi = Math.acos(2*Math.random()-1);
+    pos[i*3] = r*Math.sin(phi)*Math.cos(theta);
+    pos[i*3+1] = r*Math.cos(phi);
+    pos[i*3+2] = r*Math.sin(phi)*Math.sin(theta);
+  }
+  starGeo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color:0xf4f8ff, size:1.2, sizeAttenuation:true })));
+
+  const loader = new THREE.TextureLoader();
+  let loaded=0; const ready=()=>{ loaded++; if(loaded>=2) document.getElementById('loading').style.display='none'; };
+  const globeTexture = loader.load('assets/dolnath_globe_texture.png', ready);
+  globeTexture.colorSpace = THREE.SRGBColorSpace;
+  globeTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  const azTexture = loader.load('assets/azuros_floating.png', ready);
+  azTexture.colorSpace = THREE.SRGBColorSpace;
+  azTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+
+  const globeRadius = 8.2;
+  const globeGroup = new THREE.Group(); scene.add(globeGroup);
+  const globe = new THREE.Mesh(
+    new THREE.SphereGeometry(globeRadius, 128, 128),
+    new THREE.MeshPhongMaterial({ map:globeTexture, shininess:5, specular:new THREE.Color(0x244b64) })
+  );
+  globeGroup.add(globe);
+
+  globeGroup.add(new THREE.Mesh(
+    new THREE.SphereGeometry(globeRadius*1.035, 96, 96),
+    new THREE.MeshLambertMaterial({ color:0x4d8eff, transparent:true, opacity:0.17, side:THREE.BackSide })
+  ));
+
+  const cc=document.createElement('canvas'); cc.width=2048; cc.height=1024;
+  const cctx=cc.getContext('2d');
+  for(let i=0;i<240;i++){
+    const x=Math.random()*2048, y=Math.random()*1024;
+    const rx=35+Math.random()*130, ry=12+Math.random()*38;
+    const grad=cctx.createRadialGradient(x,y,2,x,y,rx);
+    grad.addColorStop(0,'rgba(255,255,255,'+(0.03+Math.random()*0.045)+')');
+    grad.addColorStop(1,'rgba(255,255,255,0)');
+    cctx.fillStyle=grad; cctx.beginPath(); cctx.ellipse(x,y,rx,ry,Math.random()*Math.PI,0,Math.PI*2); cctx.fill();
+  }
+  const cloudTex=new THREE.CanvasTexture(cc); cloudTex.colorSpace=THREE.SRGBColorSpace;
+  const cloudLayer=new THREE.Mesh(new THREE.SphereGeometry(globeRadius*1.01,96,96), new THREE.MeshPhongMaterial({ map:cloudTex, transparent:true, opacity:0.32, depthWrite:false }));
+  globeGroup.add(cloudLayer);
+
+  const azuros = new THREE.Sprite(new THREE.SpriteMaterial({ map:azTexture, transparent:true, depthWrite:false }));
+  const azRatio = azTexture.image.width / azTexture.image.height || 1;
+  azuros.scale.set(5.8*azRatio, 5.8, 1);
+  scene.add(azuros);
+
+  const clock=new THREE.Clock();
+  function animate(){
+    requestAnimationFrame(animate);
+    const t=clock.getElapsedTime();
+    globeGroup.rotation.y += 0.0018;
+    cloudLayer.rotation.y += 0.00235;
+    cloudLayer.rotation.z = Math.sin(t*0.09)*0.015;
+    const theta = t*0.10 + 0.9*Math.sin(t*0.031) + 0.35*Math.sin(t*0.071);
+    const phi = 1.1 + 0.25*Math.sin(t*0.053) + 0.08*Math.sin(t*0.14 + 1.7);
+    const r = globeRadius + 5.7 + 0.5*Math.sin(t*0.11);
+    const x = r*Math.sin(phi)*Math.cos(theta);
+    const y = r*Math.cos(phi) + 2.0;
+    const z = r*Math.sin(phi)*Math.sin(theta);
+    azuros.position.set(x,y,z);
+    controls.update();
+    renderer.render(scene,camera);
+  }
+  animate();
+  window.addEventListener('resize',()=>{ camera.aspect=window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth,window.innerHeight); });
+})();
+</script>
+</body>
+</html>
