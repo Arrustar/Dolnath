@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Dynamic calendar for the fantasy world of Dolnath.">
+<title>Dolnath Calendar</title>
+</head>
+<body>
+<!-- Dolnath Calendar — GitHub Pages v1.5.1 -->
+<style>
+html,body{margin:0;padding:0;width:100%;background:#fbfaf6;color:#1d2430;font-family:Georgia,"Times New Roman",serif}
+*{box-sizing:border-box}
+.dc-wrap{max-width:1800px;margin:0 auto;padding:16px 22px 36px}
+.dc-head{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:12px}
+.dc-head h1{margin:0 18px 0 0;font-size:30px}
+.dc-controls,.dc-sync{display:flex;flex-wrap:wrap;align-items:center;gap:7px;font-family:Arial,Helvetica,sans-serif}
+.dc-controls button,.dc-controls input,.dc-sync button{padding:8px 10px;border:1px solid #918c80;border-radius:4px;background:#fff;color:#1d2430}
+.dc-controls input{width:92px}
+.dc-sync{padding:9px 11px;border:1px solid #c9c5b8;border-radius:7px;background:#fff;margin-bottom:18px}
+#sync-status{font-size:13px}
+.month{width:100%;background:#fff;border:1px solid #c9c5b8;border-radius:10px;overflow:hidden;margin:0 0 26px;page-break-inside:avoid}
+.month h2{margin:0;padding:13px 16px;font-size:27px;border-bottom:1px solid #c9c5b8}
+.weekhead,.grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr))}
+.weekhead div{font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:bold;text-align:center;padding:9px 4px;border-bottom:1px solid #c9c5b8}
+.day{min-height:145px;padding:9px;border-right:1px solid #c9c5b8;border-bottom:1px solid #c9c5b8;overflow-wrap:anywhere}
+.day:nth-child(6n){border-right:0}
+.empty{background:#f2f0e9}
+.num{font-size:21px;font-weight:bold}
+.weekday,.moons,.event{font-family:Arial,Helvetica,sans-serif;font-size:11px}
+.weekday{opacity:.72}
+.moons{margin-top:5px;white-space:normal}
+.event{display:block;width:100%;text-align:left;margin-top:5px;padding:4px 5px;border:1px solid #b5b0a4;border-radius:4px;background:rgba(255,255,255,.88);cursor:pointer}
+.current{outline:4px solid #222;outline-offset:-4px}
+.veil{box-shadow:inset 0 0 0 3px rgba(69,45,105,.5)}
+.spring{background:#eef6ec}.summer{background:#fff6d9}.autumn{background:#f8eadf}.winter{background:#edf2f7}
+#detail-panel{display:none;background:#fff;border:1px solid #c9c5b8;border-radius:8px;padding:14px;margin:0 0 20px}
+#detail-panel.open{display:block}
+#detail-panel h3{margin:0 0 8px}
+#detail-panel p{white-space:pre-line;line-height:1.55}
+#detail-panel button{padding:6px 9px}
+@media(max-width:700px){
+  .dc-wrap{padding-left:7px;padding-right:7px}
+  .dc-head h1{font-size:24px;width:100%}
+  .day{min-height:108px;padding:5px}
+  .month h2{font-size:21px}
+  .weekhead div{font-size:9px;padding:6px 1px}
+  .num{font-size:17px}
+  .weekday,.moons,.event{font-size:9px}
+}
+</style>
+
+<div class="dc-wrap">
+  <div class="dc-head">
+    <h1>Dolnath Calendar</h1>
+    <div class="dc-controls">
+      <button type="button" onclick="changeYear(-1)">◀ Previous Year</button>
+      <label>Year <input id="year-input" type="number" min="1" value="304"></label>
+      <button type="button" onclick="goToYear()">Go</button>
+      <button type="button" onclick="changeYear(1)">Next Year ▶</button>
+      <button type="button" onclick="jumpToSyncedDate()">Current Game Date</button>
+    </div>
+  </div>
+
+  <div class="dc-sync">
+    <strong>Roll20 Sync:</strong>
+    <span id="sync-status">Middleman URL not configured.</span>
+    <button type="button" onclick="pollMiddleman()">Check Now</button>
+  </div>
+
+  <div id="detail-panel">
+    <h3 id="detail-title"></h3>
+    <div id="detail-meta"></div>
+    <p id="detail-text"></p>
+    <button type="button" onclick="closeDetails()">Close</button>
+  </div>
+
+  <div id="calendar"></div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+    var CONFIG = {
+        yearLength: 351,
+        months: ['Dumue','Vepha','Muriel','Zaliel','Ulsum','Aros','Heimlen','Torren','Nelaser'],
+        monthLength: 39,
+        weekdays: ['Durnen','Makoten','Vierden','Torgen','Relgun','Fiergen'],
+        firstDay: 5,
+        moons: {
+            Xania:   { cycle: 15, shift: 8 },
+            Luistea: { cycle: 39, shift: 7 },
+            Vugeon:  { cycle: 31, shift: 0 }
+        },
+        defaultDate: { year: 304, month: 2, day: 14 },
+        weekdayAnchorDate: { year: 304, month: 1, day: 1 },
+        upcomingDefault: 7
+    };
+
+    var FIXED_EVENTS = [
+        {
+            month: 'Vepha', day: 4,
+            name: 'All Spirits Festival', type: 'Holiday',
+            description: 'Observed each year on the fourth day of Vepha, when Spring has settled firmly upon the land and the year has begun to stir with new promises.\n\nWould-be lovers exchange gifts to appease the ancestors of their families and seek a blessing for their union.\n\nThe holiday is commonly associated with courtship, family approval, remembrance, and the belief that the dead still retain an interest in the lives and marriages of their descendants. Gifts may be exchanged not only between prospective partners, but also offered symbolically to deceased relatives whose favor is being sought.'
+        },
+        {
+            month: 'Ulsum', day: 17,
+            name: 'Cosmos Accord Day', type: 'Holiday',
+            description: 'Observed each year on the seventeenth day of Ulsum, when all three moons are called into perfect fullness in remembrance of the God Chosens’ victory over Ataxia.\n\nCosmos Accord Day was established on the first anniversary of the God Chosens’ victory over Ataxia.\n\nOn this day, Xania, Luistea, and Vugeon all become supernaturally Full, regardless of where they should naturally stand in their lunar cycles. The event is therefore both a historical commemoration and a celestial phenomenon unlike any naturally occurring alignment.\n\nThe simultaneous fullness of all three moons is traditionally regarded as a visible reminder of the accord that followed the victory and of the forces that were brought together to overcome Ataxia.',
+            lunarOverride: { Xania: 'Full', Luistea: 'Full', Vugeon: 'Full' }
+        },
+        {
+            month: 'Heimlen', day: 7,
+            name: "Autumn's Gate", type: 'Holiday / Season Change',
+            description: 'Autumn’s Gate is opened each year on the seventh day of Heimlen, when the warmth of Summer is formally surrendered and the realm turns toward the coming cold.\n\nMarks the formal beginning of Autumn.\n\nHomes, shops, temples, and city gates are decorated with red, orange, and gold leaves. The holiday focuses on transition, preparation, and completing unfinished business before Winter.\n\nDebts are traditionally settled, apprentices may complete periods of training, contracts are renewed, and families begin preparing their homes and stores for colder weather. Travelers returning from long journeys are particularly welcomed on Autumn’s Gate, while beginning an unnecessarily dangerous journey on this day is sometimes considered tempting fate.'
+        },
+        {
+            month: 'Torren', day: 5,
+            name: 'First Ember', type: 'Holiday / Season Change',
+            description: 'First Ember is kindled each year on the fifth day of Torren, when Winter takes hold and every household prepares to carry its own flame through the cold months ahead.\n\nMarks the beginning of Winter.\n\nAt sunset, every household extinguishes its hearth and kindles a new flame of its own. The relighting is treated as a private household rite, symbolizing endurance, renewal, and the preservation of warmth through the cold season.\n\nFamilies commonly gather around the newly lit hearth for their first winter meal. Allowing the flame to die before sunrise is considered a bad omen for the coming Winter.'
+        }
+    ];
+
+    var VEILNIGHT = {
+        month: 'Zaliel',
+        week: 4,
+        weekday: 'Torgen',
+        duration: 3,
+        name: 'Veilnight',
+        type: 'Holiday / Supernatural Convergence',
+        description: 'Veilnight begins when Torgen arrives in the fourth week of Zaliel and endures for three nights, as the unseen paths between worlds draw dangerously near.\n\nVeilnight is a three-night supernatural observance during which the boundaries separating the planes become unusually thin. Summoning and conjuration magic becomes more potent and reliable, extradimensional passages answer more readily, and beings from beyond the mortal world find it easier to cross into it.\n\nThe phenomenon strengthens over the first two nights before beginning to recede on the third.',
+        phases: [
+            {
+                name: 'The Unsealing',
+                description: 'When Torgen falls within the fourth week of Zaliel, Veilnight begins and the first unseen paths between the planes start to open.\n\nPlanar boundaries begin to loosen, and summoning and conjuration magic becomes noticeably easier and more reliable.\n\nCalled creatures arrive more readily, extradimensional passages answer with less resistance, and spirit-calling requires less effort. Experienced mages often describe the first night as a sensation of distant places becoming suddenly close enough to touch.\n\nThe Unsealing is generally considered the safest of the three nights, though even then practitioners are warned that not every answering presence was necessarily the one being called.'
+            },
+            {
+                name: 'The Nearing',
+                description: 'On the night that follows, the worlds draw nearest to one another and Veilnight reaches the height of its power.\n\nThe boundaries between planes are at their weakest.\n\nSummoned creatures tend to arrive readily and remain unusually stable, while conjuration, planar travel, extradimensional effects, and spirit-calling reach their greatest potency.\n\nThe ease of crossing works in both directions. Unwanted entities may discover paths into the mortal world without invitation, and places already touched by planar magic can become unpredictable.\n\nFor this reason, the Nearing is prized by ambitious conjurers and feared by those responsible for protecting settlements from supernatural threats.'
+            },
+            {
+                name: 'The Severing',
+                description: 'On the third and final night, the distant realms begin to withdraw, and the opened paths slowly close with the coming dawn.\n\nThe boundaries between worlds begin tightening once more, though summoning and conjuration remain unusually effective throughout the night.\n\nTradition warns that creatures summoned during Veilnight should be dismissed before the final dawn. Stories tell of beings that remained too long becoming trapped, altered, or finding ways to remain in the mortal world after the paths behind them had closed.\n\nBy sunrise, the planes are believed to have returned to their ordinary distance from one another.'
+            }
+        ]
+    };
+
+    var SEASONS = [
+        { name: 'Spring', month: 'Dumue', day: 5 },
+        { name: 'Summer', month: 'Muriel', day: 25 },
+        { name: 'Autumn', month: 'Heimlen', day: 7 },
+        { name: 'Winter', month: 'Torren', day: 5 }
+    ];
+
+
+    function clone(o) { return JSON.parse(JSON.stringify(o)); }
+    function esc(s) {
+        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+    function monthIndex(name) { return CONFIG.months.indexOf(name); }
+    function ordinal(n) {
+        var v=n%100; return n + (v>=11 && v<=13 ? 'th' : ({1:'st',2:'nd',3:'rd'}[n%10] || 'th'));
+    }
+    function dateText(d) { return ordinal(d.day) + ' of ' + CONFIG.months[d.month-1] + ', ' + d.year; }
+
+    function validateDate(d) {
+        return d && Number.isInteger(d.year) && Number.isInteger(d.month) && Number.isInteger(d.day) &&
+            d.year >= 1 && d.month >= 1 && d.month <= CONFIG.months.length && d.day >= 1 && d.day <= CONFIG.monthLength;
+    }
+
+    function dayOfYear(d) { return (d.month - 1) * CONFIG.monthLength + (d.day - 1); }
+    function absoluteDay(d) { return (d.year - 1) * CONFIG.yearLength + dayOfYear(d); }
+
+    function lunarOffset(d) {
+        // Lunar shifts are anchored to the campaign's configured current-date epoch.
+        return absoluteDay(d) - absoluteDay(CONFIG.defaultDate);
+    }
+
+    function weekdayOffset(d) {
+        // Keep Donjon weekday alignment anchored to 1 Dumue, 304 even when the campaign current date changes.
+        return absoluteDay(d) - absoluteDay(CONFIG.weekdayAnchorDate);
+    }
+
+    function weekday(d) {
+        var idx = ((CONFIG.firstDay + weekdayOffset(d)) % CONFIG.weekdays.length + CONFIG.weekdays.length) % CONFIG.weekdays.length;
+        return CONFIG.weekdays[idx];
+    }
+
+    function addDays(d, amount) {
+        var a = absoluteDay(d) + amount;
+        if (a < 0) { a = 0; }
+        var year = Math.floor(a / CONFIG.yearLength) + 1;
+        var doy = a % CONFIG.yearLength;
+        var month = Math.floor(doy / CONFIG.monthLength) + 1;
+        var day = (doy % CONFIG.monthLength) + 1;
+        return { year: year, month: month, day: day };
+    }
+
+    function daysBetween(a,b) { return absoluteDay(b) - absoluteDay(a); }
+
+    function seasonFor(d) {
+        var doy = dayOfYear(d);
+        var starts = SEASONS.map(function(s){
+            return { name:s.name, doy: monthIndex(s.month) * CONFIG.monthLength + (s.day-1) };
+        }).sort(function(a,b){return a.doy-b.doy;});
+        var current = starts[starts.length-1].name;
+        starts.forEach(function(s){ if (doy >= s.doy) { current=s.name; } });
+        return current;
+    }
+
+    function phaseFor(name, d) {
+        // Donjon-style cycle/shift converted to one of eight named phases.
+        // The shift is applied relative to 14 Vepha, 304, the campaign's lunar epoch.
+        var m = CONFIG.moons[name];
+        var pos = ((lunarOffset(d) + m.shift) % m.cycle + m.cycle) % m.cycle;
+        var f = pos / m.cycle;
+        var idx = Math.floor((f * 8) + 0.5) % 8;
+        return ['New','Waxing Crescent','First Quarter','Waxing Gibbous','Full','Waning Gibbous','Last Quarter','Waning Crescent'][idx];
+    }
+
+    function moonPhases(d) {
+        var p = {
+            Xania: phaseFor('Xania',d),
+            Luistea: phaseFor('Luistea',d),
+            Vugeon: phaseFor('Vugeon',d)
+        };
+        var fixed = fixedEventsOn(d);
+        fixed.forEach(function(e){
+            if(e.lunarOverride) {
+                Object.keys(e.lunarOverride).forEach(function(k){ p[k]=e.lunarOverride[k]; });
+            }
+        });
+        return p;
+    }
+
+    function fixedEventsOn(d) {
+        var m = CONFIG.months[d.month-1];
+        return FIXED_EVENTS.filter(function(e){return e.month===m && e.day===d.day;});
+    }
+
+    function weekdayName(d) {
+        var delta = absoluteDay(d) - absoluteDay(CONFIG.weekdayAnchorDate);
+        var idx = ((CONFIG.firstDay + delta) % CONFIG.weekdays.length + CONFIG.weekdays.length) % CONFIG.weekdays.length;
+        return CONFIG.weekdays[idx];
+    }
+
+    function weekdayInMonthWeek(year, monthName, weekNumber, weekday) {
+        var m = monthIndex(monthName) + 1;
+        if (m < 1) { return null; }
+        var start = ((weekNumber - 1) * CONFIG.weekdays.length) + 1;
+        var end = Math.min(start + CONFIG.weekdays.length - 1, CONFIG.monthLength);
+        for (var day = start; day <= end; day++) {
+            if (weekdayName({year: year, month: m, day: day}) === weekday) {
+                return day;
+            }
+        }
+        return null;
+    }
+
+    function veilnightEventsOn(d) {
+        var monthName = CONFIG.months[d.month-1];
+        if (monthName !== VEILNIGHT.month) { return []; }
+        var startDay = weekdayInMonthWeek(d.year, VEILNIGHT.month, VEILNIGHT.week, VEILNIGHT.weekday);
+        if (startDay === null) { return []; }
+        var offset = d.day - startDay;
+        if (offset < 0 || offset >= VEILNIGHT.duration) { return []; }
+        var phase = VEILNIGHT.phases[offset];
+        return [{
+            name: VEILNIGHT.name + ' — ' + phase.name,
+            type: VEILNIGHT.type,
+            description: phase.description,
+            special: offset === 1 ? 'Veilnight reaches its strongest point tonight.' : ''
+        }];
+    }
+
+    function lunarEventsOn(d) {
+        var p = moonPhases(d);
+        var out = [];
+
+        if (p.Vugeon === 'Full' && p.Xania === 'Full') {
+            out.push({ name: 'Night of Whispering Moons', type: 'Lunar Event', description: 'The Night of Whispering Moons begins when vast black Vugeon and silver Xania rise together in their fullest splendor, their combined presence dominating the heavens while little red Luistea follows whatever course fate has set for her.\n\nVugeon is the largest of the three moons, a great black sphere whose fullness is most easily recognized by the strange darkness it casts against the stars and the faint halo that often seems to outline its immense form. Beside it hangs Xania, the second-largest moon, gleaming with unmistakable silver light. When the two stand Full together, the contrast between Vugeon’s immense darkness and Xania’s pale radiance creates one of the most striking sights in the night sky.\n\nDuring this alignment, people across the world begin hearing faint whispers from sources they cannot find.\n\nThe voices may seem to come from empty rooms, darkened doorways, wells, standing stones, temple alcoves, forests, or simply from somewhere just beyond the listener’s shoulder. Some hear only a few indistinct syllables, while others receive entire phrases, warnings, names, questions, or instructions.\n\nNo one has ever proven where the whispers originate.\n\nPriests often claim that the Gods are more easily heard while silver Xania shines beside the enormous black face of Vugeon, though even temples disagree over which voices are truly divine. Scholars offer other explanations: wandering spirits, distant planar entities, echoes of forgotten words, or some unknowable interaction between the two moons themselves.\n\nThe uncertainty is part of what makes the night unsettling. A whisper may offer genuine guidance, reveal a hidden truth, speak a dead person’s name, or urge the listener toward something disastrous. Two people standing beside one another may hear completely different messages, and some hear nothing at all.\n\nMany cultures therefore warn against obeying a whisper simply because it appears supernatural. Priests and diviners often record what is heard and wait for corroborating signs before acting upon it.\n\nCertain traditions hold that a true divine whisper never identifies the god who speaks, while any voice that eagerly names itself should be treated with suspicion.\n\nTemples remain open later than usual during the event, and shrines often fill with people hoping for guidance from a patron deity, a departed ancestor, or some power that has remained silent at other times.\n\nThe Night of Whispering Moons is associated with mystery, revelation, temptation, divine uncertainty, and the dangerous desire to believe that an unseen voice was meant specifically for you.' });
+        }
+        if (p.Vugeon === 'Full' && p.Xania === 'New' && p.Luistea === 'New') {
+            out.push({ name: "Vugeon's Hunt", type: 'Lunar Event', description: 'Vugeon’s Hunt begins when Vugeon alone reaches his terrible fullness, the largest moon hanging black and immense above the world while silver Xania and little red Luistea have both withdrawn their light from the heavens.\n\nWith no other moon to challenge him, Vugeon seems impossibly large. His black disc consumes a vast portion of the night sky, visible less by reflected light than by the stars he obscures and the dim, unnatural halo tracing his circumference. Rural traditions often describe such a night by saying that Vugeon has swallowed the heavens.\n\nDuring Vugeon’s Hunt, the natural world becomes unusually dangerous. Wild animals grow more aggressive, territorial, and fearless, while many become noticeably stronger, faster, and more resilient than they normally would be. Even ordinarily timid creatures may attack travelers or settlements if sufficiently provoked.\n\nPredators are particularly affected. Wolves gather into unusually large packs, great cats roam beyond their normal territories, and bears or similar beasts may remain active when they would ordinarily avoid civilization.\n\nDruids and experienced hunters claim that animals are not merely enraged during the Hunt. They are answering some ancient instinct awakened beneath the solitary presence of the great black moon—something older than domestication, roads, walls, or perhaps even civilization itself.\n\nBecause of this, rural communities commonly bring livestock inside fortified enclosures before sunset. Hunters traditionally avoid killing animals unnecessarily during the event, believing that spilling too much wild blood while Vugeon alone watches from above invites the notice of something older and greater than the beasts already roaming the dark.\n\nAdventurers, however, have another reason to venture into the wilderness: exceptionally powerful beasts sometimes appear only during Vugeon’s Hunt, making the event a natural opportunity for rare monster encounters, trophies, magical materials, or legendary hunts.' });
+        }
+        if (p.Luistea === 'Full' && p.Xania === 'New' && p.Vugeon === 'New') {
+            out.push({ name: "Luistea's Bleeding", type: 'Lunar Event', description: 'Luistea’s Bleeding begins when tiny crimson Luistea alone reaches her fullness, burning like a drop of fresh blood against a sky abandoned by black Vugeon and silver Xania.\n\nLuistea is the smallest of the three moons, and on most nights her red light can seem modest beside her greater sisters. When she alone remains Full, however, the absence of the larger moons makes her crimson color impossible to ignore. The small red moon hangs in an otherwise moonless sky like a wound opened in the heavens.\n\nDuring Luistea’s Bleeding, wounds are notoriously difficult to manage. Cuts bleed longer than expected, old injuries may reopen, and even minor wounds are more prone to swelling, corruption, and infection. Healers traditionally avoid unnecessary surgery or bloodletting during the event, while soldiers and hunters treat even small injuries with unusual caution.\n\nPeople preparing for dangerous work often carry extra bandages, antiseptic herbs, or healing draughts when the small red moon is expected to stand alone in her fullness.\n\nIn some cultures, drawing blood intentionally beneath Luistea is considered deeply unlucky. Others believe blood spilled beneath her solitary crimson light gains unusual potency in curses, oaths, sacrifices, or darker forms of magic.\n\nLuistea herself is not necessarily regarded as malevolent. Rather, her lonely red radiance serves as an unavoidable reminder that beneath armor, pride, and strength, all living creatures are made of vulnerable flesh.\n\nThe event is commonly associated with mortality, vulnerability, sacrifice, and the price of violence.' });
+        }
+        if (p.Xania === 'Full' && p.Luistea === 'New' && p.Vugeon === 'New') {
+            out.push({ name: "Xania's Grace", type: 'Lunar Event', description: 'Xania’s Grace descends when silver Xania alone reaches her perfect fullness, shining brightly over a world from which great black Vugeon and little red Luistea have disappeared.\n\nXania is the second-largest of the three moons. Without Vugeon’s enormous dark form or Luistea’s crimson glow competing for the heavens, her clear silvery radiance seems to wash across the entire landscape. Travelers sometimes say shadows appear softer beneath Xania’s solitary light and that even familiar places seem calmer.\n\nXania’s solitary full moon is regarded as an exceptionally favorable sign for health, healing, and recovery. Wounds seem to close more cleanly, fevers may break sooner, and the sick are believed to respond more readily to medicines and restorative magic.\n\nTemples, healers, and apothecaries often schedule difficult treatments for this night when circumstances allow. Recuperating patients may be carried outdoors or placed beside open windows so that Xania’s silver light can fall upon them.\n\nChildren born beneath Xania’s Grace are traditionally considered blessed with strong constitutions, and surviving a serious illness on this night is sometimes interpreted as evidence that Xania herself has extended mercy to the individual.\n\nSome healing temples place polished silver bowls or mirrors where they can catch Xania’s light throughout the night, believing the reflected radiance retains a trace of her blessing until sunrise.\n\nThe event is commonly associated with renewal, mercy, vitality, healing, and second chances.' });
+        }
+        if (p.Xania === 'New' && p.Luistea === 'New' && p.Vugeon === 'New') {
+            out.push({ name: 'True Night', type: 'Lunar Event', description: 'True Night descends when silver Xania, crimson Luistea, and immense black Vugeon all turn their faces from the world, leaving the heavens utterly without a moon.\n\nThe absence of Vugeon is especially disturbing. The largest moon normally occupies such a commanding presence in the heavens that even its darkness is familiar. When Vugeon vanishes alongside silver Xania and red Luistea, the sky seems unnaturally vast and empty.\n\nThere is no silver glow along the roads. No crimson point watches from above. Not even Vugeon’s enormous black silhouette interrupts the stars.\n\nOn True Night, darkness is said to become more than the mere absence of light.\n\nOnce the final trace of moonlight fades, sleepers begin to dream with unnatural intensity—and some of those dreams do not remain confined to sleep.\n\nNightmares may take shape beside the people who dreamed them. A terrified child might awaken to find the thing beneath the bed standing in the room. A veteran may see fallen enemies walking once more. A guilty ruler may hear the voices of those betrayed, while a grieving widow may discover that the figure waiting beyond the window wears a familiar face.\n\nThese manifestations are rarely identical from one person to another. Some appear only to the dreamer, while others can be seen—and sometimes harmed—by anyone nearby. Whether they are illusions, spirits, creatures drawn from some nightmare realm, or fears somehow given temporary flesh remains a matter of bitter debate among scholars and priests.\n\nCommunities prepare carefully when True Night is predicted. Children are often kept in the same room as their families, lamps remain burning in temples until dawn, and those known to suffer recurring nightmares may be watched through the night. In some regions, people deliberately avoid sleep altogether.\n\nOlder traditions warn against speaking aloud of one’s deepest fears in the days before True Night. According to superstition, a nightmare given a name finds the road into the waking world more easily.\n\nSome priests teach that the three moons ordinarily serve as silent sentinels over the sleeping world: Xania’s silver light guarding the body, Luistea’s red eye reminding the soul of mortality, and vast Vugeon standing watch over the wilderness beyond the firelight. On True Night, all three sentinels are absent.\n\nWhether that belief is true or merely another frightened story told beside a lamp, few people willingly sleep beneath a completely moonless sky.\n\nTrue Night is associated with fear, vulnerability, hidden guilt, abandonment, and the terrifyingly thin boundary between imagination and reality.' });
+        }
+        return out;
+    }
+
+    function seasonEventOn(d) {
+        var m = CONFIG.months[d.month-1];
+        var s = SEASONS.filter(function(x){return x.month===m && x.day===d.day;})[0];
+        if (!s) return [];
+        // Autumn/Winter already have holiday cards; still report season transition once.
+        return [{ name: s.name + ' begins', type: 'Season Change', description: 'The season changes to ' + s.name + '.' }];
+    }
+
+    function allEventsOn(d) {
+        return fixedEventsOn(d).concat(seasonEventOn(d)).concat(veilnightEventsOn(d)).concat(lunarEventsOn(d));
+    }
+
+var displayedYear=304;
+var syncedDate={year:304,month:2,day:14};
+var MIDDLEMAN_URL="PASTE_YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE";
+var eventStore={};
+var eventSeq=0;
+
+function seasonClass(d){return seasonFor(d).toLowerCase();}
+function moonSymbol(p){return p==="Full"?"●":(p==="New"?"○":"◐");}
+function eventKey(e,d){eventSeq++;var k="e"+eventSeq;eventStore[k]={event:e,date:d};return k;}
+
+window.showEventDetails=function(key){
+  var item=eventStore[key]; if(!item) return;
+  var p=document.getElementById("detail-panel");
+  document.getElementById("detail-title").textContent=item.event.name;
+  document.getElementById("detail-meta").textContent=dateText(item.date)+" — "+item.event.type;
+  document.getElementById("detail-text").textContent=item.event.description+(item.event.special?"\n\n"+item.event.special:"");
+  p.className="open";
+  try{p.scrollIntoView({behavior:"smooth",block:"start"});}catch(e){p.scrollIntoView(true);}
+};
+window.closeDetails=function(){document.getElementById("detail-panel").className="";};
+
+function renderYear(year){
+  displayedYear=parseInt(year,10)||304;
+  if(displayedYear<1) displayedYear=1;
+  document.getElementById("year-input").value=displayedYear;
+  eventStore={}; eventSeq=0;
+  var out="";
+
+  for(var m=1;m<=CONFIG.months.length;m++){
+    out+='<section class="month"><h2>'+CONFIG.months[m-1]+' — '+displayedYear+'</h2>';
+    out+='<div class="weekhead">';
+    for(var w=0;w<CONFIG.weekdays.length;w++) out+='<div>'+CONFIG.weekdays[w]+'</div>';
+    out+='</div><div class="grid">';
+
+    var first={year:displayedYear,month:m,day:1};
+    var firstIndex=CONFIG.weekdays.indexOf(weekdayName(first));
+    for(var b=0;b<firstIndex;b++) out+='<div class="day empty"></div>';
+
+    for(var day=1;day<=CONFIG.monthLength;day++){
+      var d={year:displayedYear,month:m,day:day};
+      var phases=moonPhases(d);
+      var events=allEventsOn(d);
+      var cls="day "+seasonClass(d);
+      if(events.some(function(e){return e.name.indexOf("Veilnight")===0;})) cls+=" veil";
+      if(syncedDate.year===d.year&&syncedDate.month===d.month&&syncedDate.day===d.day) cls+=" current";
+
+      out+='<div class="'+cls+'" data-year="'+d.year+'" data-month="'+m+'" data-day="'+day+'">';
+      out+='<div class="num">'+day+'</div><div class="weekday">'+weekdayName(d)+'</div>';
+      out+='<div class="moons">X '+moonSymbol(phases.Xania)+' '+phases.Xania+' · L '+moonSymbol(phases.Luistea)+' '+phases.Luistea+' · V '+moonSymbol(phases.Vugeon)+' '+phases.Vugeon+'</div>';
+
+      events.forEach(function(e){
+        var k=eventKey(e,{year:d.year,month:d.month,day:d.day});
+        out+='<button class="event" type="button" onclick="showEventDetails(\''+k+'\')">'+e.name+'</button>';
+      });
+      out+='</div>';
+    }
+
+    var cells=firstIndex+CONFIG.monthLength;
+    while(cells%CONFIG.weekdays.length!==0){out+='<div class="day empty"></div>';cells++;}
+    out+='</div></section>';
+  }
+  document.getElementById("calendar").innerHTML=out;
+}
+
+window.changeYear=function(delta){renderYear(displayedYear+delta);};
+window.goToYear=function(){renderYear(document.getElementById("year-input").value);};
+window.jumpToSyncedDate=function(){
+  if(displayedYear!==syncedDate.year) renderYear(syncedDate.year);
+  setTimeout(function(){
+    var q='.day[data-year="'+syncedDate.year+'"][data-month="'+syncedDate.month+'"][data-day="'+syncedDate.day+'"]';
+    var el=document.querySelector(q);
+    if(el){try{el.scrollIntoView({behavior:"smooth",block:"center"});}catch(e){el.scrollIntoView(true);}}
+  },0);
+};
+
+function applySyncCode(code){
+  var m=/^DOLNATH-(\d+)-(\d{2})-(\d{2})$/.exec(String(code||"").toUpperCase());
+  if(!m) return false;
+  var y=parseInt(m[1],10), mo=parseInt(m[2],10), da=parseInt(m[3],10);
+  if(y<1||mo<1||mo>9||da<1||da>39) return false;
+  syncedDate={year:y,month:mo,day:da};
+  try{localStorage.setItem("dolnathSyncCode",code);}catch(e){}
+  document.getElementById("sync-status").textContent="Synced: "+dateText(syncedDate);
+  if(displayedYear!==y) renderYear(y); else renderYear(displayedYear);
+  return true;
+}
+
+window.dolnathMiddlemanCallback=function(payload){
+  if(payload&&payload.ok&&payload.code) applySyncCode(payload.code);
+};
+
+window.pollMiddleman=function(){
+  var status=document.getElementById("sync-status");
+  if(!MIDDLEMAN_URL||MIDDLEMAN_URL.indexOf("PASTE_YOUR")===0){
+    status.textContent="Middleman URL not configured.";
+    return;
+  }
+  var old=document.getElementById("dolnath-middleman-jsonp");
+  if(old&&old.parentNode) old.parentNode.removeChild(old);
+  var s=document.createElement("script");
+  s.id="dolnath-middleman-jsonp";
+  s.src=MIDDLEMAN_URL+"?callback=dolnathMiddlemanCallback&_="+(new Date().getTime());
+  s.onerror=function(){status.textContent="Unable to reach sync middleman."; if(s.parentNode)s.parentNode.removeChild(s);};
+  document.body.appendChild(s);
+};
+
+try{
+  var saved=localStorage.getItem("dolnathSyncCode");
+  if(saved) applySyncCode(saved); else renderYear(304);
+}catch(e){renderYear(304);}
+
+setInterval(pollMiddleman,30000);
+setTimeout(pollMiddleman,1200);
+
+}());
+</script>
+
+</body>
+</html>
