@@ -7,7 +7,7 @@
 <title>Dolnath Calendar</title>
 </head>
 <body>
-<!-- Dolnath Calendar — GitHub Pages v1.5.1 -->
+<!-- Dolnath Calendar — GitHub Pages v1.6.0 -->
 <style>
 html,body{margin:0;padding:0;width:100%;background:#fbfaf6;color:#1d2430;font-family:Georgia,"Times New Roman",serif}
 *{box-sizing:border-box}
@@ -30,7 +30,7 @@ html,body{margin:0;padding:0;width:100%;background:#fbfaf6;color:#1d2430;font-fa
 .weekday,.moons,.event{font-family:Arial,Helvetica,sans-serif;font-size:11px}
 .weekday{opacity:.72}
 .moons{margin-top:5px;white-space:normal}
-.event{display:block;width:100%;text-align:left;margin-top:5px;padding:4px 5px;border:1px solid #b5b0a4;border-radius:4px;background:rgba(255,255,255,.88);cursor:pointer}
+.event{display:block;width:100%;text-align:left;margin-top:5px;padding:4px 5px;border:1px solid #b5b0a4;border-radius:4px;background:rgba(255,255,255,.88);cursor:pointer}.scope-chip{display:block;margin-top:2px;font-size:9px;opacity:.72;font-weight:bold}#detail-meta{white-space:pre-line;line-height:1.45;margin-bottom:8px}
 .current{outline:4px solid #222;outline-offset:-4px}
 .veil{box-shadow:inset 0 0 0 3px rgba(69,45,105,.5)}
 .spring{background:#eef6ec}.summer{background:#fff6d9}.autumn{background:#f8eadf}.winter{background:#edf2f7}
@@ -101,24 +101,30 @@ html,body{margin:0;padding:0;width:100%;background:#fbfaf6;color:#1d2430;font-fa
     var FIXED_EVENTS = [
         {
             month: 'Vepha', day: 4,
-            name: 'All Spirits Festival', type: 'Holiday',
+            name: 'All Spirits Festival', type: 'Holiday', scope: 'global',
             description: 'Observed each year on the fourth day of Vepha, when Spring has settled firmly upon the land and the year has begun to stir with new promises.\n\nWould-be lovers exchange gifts to appease the ancestors of their families and seek a blessing for their union.\n\nThe holiday is commonly associated with courtship, family approval, remembrance, and the belief that the dead still retain an interest in the lives and marriages of their descendants. Gifts may be exchanged not only between prospective partners, but also offered symbolically to deceased relatives whose favor is being sought.'
         },
         {
             month: 'Ulsum', day: 17,
-            name: 'Cosmos Accord Day', type: 'Holiday',
+            name: 'Cosmos Accord Day', type: 'Holiday', scope: 'global',
             description: 'Observed each year on the seventeenth day of Ulsum, when all three moons are called into perfect fullness in remembrance of the God Chosens’ victory over Ataxia.\n\nCosmos Accord Day was established on the first anniversary of the God Chosens’ victory over Ataxia.\n\nOn this day, Xania, Luistea, and Vugeon all become supernaturally Full, regardless of where they should naturally stand in their lunar cycles. The event is therefore both a historical commemoration and a celestial phenomenon unlike any naturally occurring alignment.\n\nThe simultaneous fullness of all three moons is traditionally regarded as a visible reminder of the accord that followed the victory and of the forces that were brought together to overcome Ataxia.',
             lunarOverride: { Xania: 'Full', Luistea: 'Full', Vugeon: 'Full' }
         },
         {
             month: 'Heimlen', day: 7,
-            name: "Autumn's Gate", type: 'Holiday / Season Change',
+            name: "Autumn's Gate", type: 'Holiday / Season Change', scope: 'global',
             description: 'Autumn’s Gate is opened each year on the seventh day of Heimlen, when the warmth of Summer is formally surrendered and the realm turns toward the coming cold.\n\nMarks the formal beginning of Autumn.\n\nHomes, shops, temples, and city gates are decorated with red, orange, and gold leaves. The holiday focuses on transition, preparation, and completing unfinished business before Winter.\n\nDebts are traditionally settled, apprentices may complete periods of training, contracts are renewed, and families begin preparing their homes and stores for colder weather. Travelers returning from long journeys are particularly welcomed on Autumn’s Gate, while beginning an unnecessarily dangerous journey on this day is sometimes considered tempting fate.'
         },
         {
             month: 'Torren', day: 5,
-            name: 'First Ember', type: 'Holiday / Season Change',
+            name: 'First Ember', type: 'Holiday / Season Change', scope: 'global',
             description: 'First Ember is kindled each year on the fifth day of Torren, when Winter takes hold and every household prepares to carry its own flame through the cold months ahead.\n\nMarks the beginning of Winter.\n\nAt sunset, every household extinguishes its hearth and kindles a new flame of its own. The relighting is treated as a private household rite, symbolizing endurance, renewal, and the preservation of warmth through the cold season.\n\nFamilies commonly gather around the newly lit hearth for their first winter meal. Allowing the flame to die before sunrise is considered a bad omen for the coming Winter.'
+        },
+        {
+            month: 'Heimlen', day: 27,
+            name: 'Night of Two Lanterns', type: 'Local Observance', scope: 'local',
+            locations: ['Shadegarde', 'Blackwharf'],
+            description: 'A remembrance observance centered on the twin Two Lanterns taverns. Each tavern normally keeps one lantern lit toward the opposite shore, but on this anniversary both taverns display two lanterns in memory of Serayne Darrow and Corren Harland. Residents gather to remember lost loved ones.'
         }
     ];
 
@@ -129,6 +135,7 @@ html,body{margin:0;padding:0;width:100%;background:#fbfaf6;color:#1d2430;font-fa
         duration: 3,
         name: 'Veilnight',
         type: 'Holiday / Supernatural Convergence',
+        scope: 'global',
         description: 'Veilnight begins when Torgen arrives in the fourth week of Zaliel and endures for three nights, as the unseen paths between worlds draw dangerously near.\n\nVeilnight is a three-night supernatural observance during which the boundaries separating the planes become unusually thin. Summoning and conjuration magic becomes more potent and reliable, extradimensional passages answer more readily, and beings from beyond the mortal world find it easier to cross into it.\n\nThe phenomenon strengthens over the first two nights before beginning to recede on the third.',
         phases: [
             {
@@ -163,6 +170,38 @@ html,body{margin:0;padding:0;width:100%;background:#fbfaf6;color:#1d2430;font-fa
         var v=n%100; return n + (v>=11 && v<=13 ? 'th' : ({1:'st',2:'nd',3:'rd'}[n%10] || 'th'));
     }
     function dateText(d) { return ordinal(d.day) + ' of ' + CONFIG.months[d.month-1] + ', ' + d.year; }
+
+    function eventScope(e) {
+        var s = String((e && e.scope) || 'global').toLowerCase();
+        return ['global','regional','local','cultural'].indexOf(s) >= 0 ? s : 'global';
+    }
+    function scopeLabel(e) {
+        var s = eventScope(e);
+        return s.charAt(0).toUpperCase() + s.slice(1);
+    }
+    function scopeTag(e) {
+        return '<span style="display:inline-block;margin-left:4px;padding:1px 5px;border:1px solid #999;border-radius:8px;font-size:10px;">[' + esc(scopeLabel(e)) + ']</span>';
+    }
+    function scopeDetails(e) {
+        var out = '<div><b>Scope:</b> ' + esc(scopeLabel(e)) + '</div>';
+        if (e && Array.isArray(e.locations) && e.locations.length) {
+            out += '<div><b>Observed in:</b> ' + esc(e.locations.join(', ')) + '</div>';
+        }
+        if (e && Array.isArray(e.cultures) && e.cultures.length) {
+            out += '<div><b>Observed by:</b> ' + esc(e.cultures.join(', ')) + '</div>';
+        }
+        return out;
+    }
+    function scopeText(e) {
+        var lines = ['Scope: ' + scopeLabel(e)];
+        if (e && Array.isArray(e.locations) && e.locations.length) {
+            lines.push('Observed in: ' + e.locations.join(', '));
+        }
+        if (e && Array.isArray(e.cultures) && e.cultures.length) {
+            lines.push('Observed by: ' + e.cultures.join(', '));
+        }
+        return lines.join('\n');
+    }
 
     function validateDate(d) {
         return d && Number.isInteger(d.year) && Number.isInteger(d.month) && Number.isInteger(d.day) &&
@@ -269,6 +308,9 @@ html,body{margin:0;padding:0;width:100%;background:#fbfaf6;color:#1d2430;font-fa
         return [{
             name: VEILNIGHT.name + ' — ' + phase.name,
             type: VEILNIGHT.type,
+            scope: eventScope(VEILNIGHT),
+            locations: VEILNIGHT.locations || [],
+            cultures: VEILNIGHT.cultures || [],
             description: phase.description,
             special: offset === 1 ? 'Veilnight reaches its strongest point tonight.' : ''
         }];
@@ -301,7 +343,7 @@ html,body{margin:0;padding:0;width:100%;background:#fbfaf6;color:#1d2430;font-fa
         var s = SEASONS.filter(function(x){return x.month===m && x.day===d.day;})[0];
         if (!s) return [];
         // Autumn/Winter already have holiday cards; still report season transition once.
-        return [{ name: s.name + ' begins', type: 'Season Change', description: 'The season changes to ' + s.name + '.' }];
+        return [{ name: s.name + ' begins', type: 'Season Change', scope: 'global', description: 'The season changes to ' + s.name + '.' }];
     }
 
     function allEventsOn(d) {
@@ -310,7 +352,7 @@ html,body{margin:0;padding:0;width:100%;background:#fbfaf6;color:#1d2430;font-fa
 
 var displayedYear=304;
 var syncedDate={year:304,month:2,day:14};
-var MIDDLEMAN_URL="https://script.google.com/macros/s/AKfycbzF6N3OSlI3RD4lTqN5XN0_qZqvLeGtHxxawINvRox38TJsjDKvvda4dQu3pX2lm983/exec";
+var MIDDLEMAN_URL="PASTE_YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE";
 var eventStore={};
 var eventSeq=0;
 
@@ -322,7 +364,7 @@ window.showEventDetails=function(key){
   var item=eventStore[key]; if(!item) return;
   var p=document.getElementById("detail-panel");
   document.getElementById("detail-title").textContent=item.event.name;
-  document.getElementById("detail-meta").textContent=dateText(item.date)+" — "+item.event.type;
+  document.getElementById("detail-meta").textContent=dateText(item.date)+" — "+item.event.type+"\n"+scopeText(item.event);
   document.getElementById("detail-text").textContent=item.event.description+(item.event.special?"\n\n"+item.event.special:"");
   p.className="open";
   try{p.scrollIntoView({behavior:"smooth",block:"start"});}catch(e){p.scrollIntoView(true);}
@@ -360,7 +402,7 @@ function renderYear(year){
 
       events.forEach(function(e){
         var k=eventKey(e,{year:d.year,month:d.month,day:d.day});
-        out+='<button class="event" type="button" onclick="showEventDetails(\''+k+'\')">'+e.name+'</button>';
+        out+='<button class="event" type="button" onclick="showEventDetails(\''+k+'\')">'+e.name+'<span class="scope-chip">['+scopeLabel(e)+']</span></button>';
       });
       out+='</div>';
     }
