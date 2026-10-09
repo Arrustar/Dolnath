@@ -48,11 +48,32 @@ html,body{margin:0;padding:0;width:100%;background:#fbfaf6;color:#1d2430;font-fa
   .num{font-size:17px}
   .weekday,.moons,.event{font-size:9px}
 }
+
+.globe-nav{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:8px 11px;
+  border:1px solid #918c80;
+  border-radius:4px;
+  background:#fff;
+  color:#1d2430;
+  text-decoration:none;
+  font-family:Arial,Helvetica,sans-serif;
+  font-size:13px;
+  line-height:1;
+}
+.globe-nav:hover,.globe-nav:focus{
+  background:#f2f0e9;
+  outline:none;
+}
+
 </style>
 
 <div class="dc-wrap">
   <div class="dc-head">
     <h1>Dolnath Calendar</h1>
+    <a class="globe-nav" href="../" aria-label="Return to Dolnath globe">← Back to Globe</a>
     <div class="dc-controls">
       <button type="button" onclick="changeYear(-1)">◀ Previous Year</button>
       <label>Year <input id="year-input" type="number" min="1" value="304"></label>
