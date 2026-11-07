@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#101d28">
+  <meta name="description" content="Explore the map of Dolnath. Zoom, drag, and inspect the world in detail.">
+  <title>Explore Dolnath — Interactive Map</title>
+  <style>
+    :root { color-scheme: dark; --bg:#101d28; --panel:#172734; --panel-2:#203746; --line:#405666; --ink:#f3f0e8; --muted:#b9c5cb; --gold:#d8b77d; }
+    * { box-sizing:border-box; }
+    html,body { width:100%; height:100%; margin:0; }
+    body { background:var(--bg); color:var(--ink); font-family:Georgia, 'Times New Roman', serif; overflow:hidden; }
+    .page { display:flex; flex-direction:column; height:100vh; height:100dvh; min-height:340px; }
+    header { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:12px clamp(14px,2.5vw,30px); background:linear-gradient(180deg,#1d3140,#15232e); border-bottom:1px solid #4d5660; box-shadow:0 3px 15px #0007; z-index:5; }
+    .brand { min-width:0; }
+    .brand .eyebrow { display:block; font-family:system-ui,sans-serif; font-size:10px; font-weight:700; letter-spacing:.2em; color:var(--gold); text-transform:uppercase; margin-bottom:2px; }
+    h1 { margin:0; font-size:clamp(22px,2.3vw,30px); font-weight:normal; letter-spacing:.02em; white-space:nowrap; }
+    .controls { display:flex; flex-wrap:wrap; justify-content:flex-end; align-items:center; gap:7px; font-family:system-ui,sans-serif; }
+    button, .home-link { border:1px solid #587080; background:var(--panel-2); color:var(--ink); border-radius:7px; min-height:39px; padding:7px 13px; font:600 13px system-ui,sans-serif; cursor:pointer; transition:background .15s,border-color .15s; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; }
+    button:hover,.home-link:hover { background:#2e4d5d; border-color:var(--gold); }
+    button:focus-visible,.home-link:focus-visible,.viewport:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
+    .zoom-btn { min-width:39px; font-size:21px; padding:3px 9px; }
+    .zoom-display { min-width:65px; text-align:center; font-size:13px; font-variant-numeric:tabular-nums; color:var(--gold); }
+    .separator { height:27px; width:1px; background:#526675; margin:0 4px; }
+    .viewport { position:relative; flex:1; min-height:0; overflow:hidden; cursor:grab; background:#263c49; touch-action:none; user-select:none; -webkit-user-select:none; outline:none; }
+    .viewport.dragging { cursor:grabbing; }
+    .viewport::before { content:""; position:absolute; inset:0; background:radial-gradient(ellipse at center,transparent 65%,#09121c8c 100%); pointer-events:none; z-index:2; }
+    .map-image { position:absolute; top:0; left:0; display:block; width:2048px; height:1536px; max-width:none; transform-origin:0 0; pointer-events:none; will-change:transform; -webkit-user-drag:none; }
+    .help { position:absolute; left:16px; bottom:16px; z-index:3; font:12px/1.5 system-ui,sans-serif; color:#e5ebec; background:#10222cdb; border:1px solid #587080; border-radius:8px; padding:8px 12px; pointer-events:none; max-width:calc(100% - 230px); }
+    .minimap { position:absolute; right:16px; bottom:16px; width:188px; aspect-ratio:4/3; z-index:4; border:1px solid #a5a7a1; border-radius:7px; background:#1a2e3c; box-shadow:0 3px 15px #0008; overflow:hidden; cursor:crosshair; }
+    .minimap img { width:100%; height:100%; object-fit:fill; display:block; pointer-events:none; opacity:.83; }
+    .mini-window { position:absolute; border:2px solid #ffe1a3; background:#ffdf8a1f; box-shadow:0 0 0 1px #10202a; pointer-events:none; }
+    .loading { position:absolute; inset:0; z-index:3; display:grid; place-items:center; font:15px system-ui,sans-serif; color:#e3d5ba; pointer-events:none; }
+    .loading[hidden] { display:none; }
+    .viewport:fullscreen { background:#263c49; }
+    @media (max-width:700px) {
+      header { padding:9px 11px; align-items:flex-start; }
+      h1 { font-size:21px; }
+      .brand .eyebrow { font-size:9px; }
+      .controls { gap:5px; }
+      button,.home-link { padding:6px 8px; min-height:34px; font-size:12px; }
+      .zoom-btn { min-width:33px; }
+      .zoom-display { min-width:46px; font-size:11px; }
+      .separator { display:none; }
+      .minimap { width:128px; right:9px; bottom:9px; }
+      .help { left:9px; bottom:9px; max-width:calc(100% - 150px); font-size:11px; padding:6px 8px; }
+    }
+    @media (max-width:460px) {
+      header { flex-wrap:wrap; gap:8px; }
+      .controls { width:100%; justify-content:space-between; }
+      .home-link { margin-left:auto; }
+      .help .desktop-help { display:none; }
+    }
+    @media (prefers-reduced-motion:reduce) { * { transition:none!important; } }
+  </style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <div class="brand">
+      <span class="eyebrow">The World of Dolnath</span>
+      <h1>Explore the Map</h1>
+    </div>
+    <nav class="controls" aria-label="Map controls">
+      <button class="zoom-btn" id="zoomOut" type="button" title="Zoom out" aria-label="Zoom out">−</button>
+      <span id="zoomDisplay" class="zoom-display" aria-live="off">100%</span>
+      <button class="zoom-btn" id="zoomIn" type="button" title="Zoom in" aria-label="Zoom in">+</button>
+      <button id="fit" type="button" title="Show entire map">Fit map</button>
+      <button id="fullscreen" type="button" title="Toggle fullscreen">Fullscreen</button>
+      <span class="separator" aria-hidden="true"></span>
+      <a class="home-link" href="index.html" title="Return to your site's home page">Home</a>
+    </nav>
+  </header>
+  <main id="viewport" class="viewport" tabindex="0" role="region" aria-label="Interactive map of Dolnath. Use the mouse wheel to zoom, drag to move, or use arrow keys and plus/minus keys.">
+    <img id="mapImage" class="map-image" src="new-dolnath-2k.png" alt="Illustrated map of the world of Dolnath" draggable="false">
+    <div id="loading" class="loading">Loading Dolnath map…</div>
+    <div class="help"><span class="desktop-help">Scroll to zoom · Drag to explore · Double-click to zoom<br></span>Touch: drag to move · Pinch to zoom</div>
+    <div id="minimap" class="minimap" title="Click to jump to a location on the map" aria-hidden="true">
+      <img src="new-dolnath-2k.png" alt="">
+      <div id="miniWindow" class="mini-window"></div>
+    </div>
+  </main>
+</div>
+<script>
+(() => {
+  'use strict';
+  const viewport = document.getElementById('viewport');
+  const image = document.getElementById('mapImage');
+  const loading = document.getElementById('loading');
+  const zoomDisplay = document.getElementById('zoomDisplay');
+  const minimap = document.getElementById('minimap');
+  const miniWindow = document.getElementById('miniWindow');
+  const fitBtn = document.getElementById('fit');
+  const fullBtn = document.getElementById('fullscreen');
+  const W = 2048, H = 1536;
+  let scale = 1, fitScale = 1, x = 0, y = 0, ready = false;
+  const pointers = new Map();
+
+  const dims = () => ({w: viewport.clientWidth, h: viewport.clientHeight});
+  const clamp = (v,min,max) => Math.max(min,Math.min(max,v));
+  const local = (clientX,clientY) => {
+    const rect = viewport.getBoundingClientRect();
+    return {x:clientX-rect.left, y:clientY-rect.top};
+  };
+  function render() {
+    if (!ready) return;
+    const {w,h} = dims();
+    const mapW = W*scale, mapH = H*scale;
+    x = mapW <= w ? (w-mapW)/2 : clamp(x,w-mapW,0);
+    y = mapH <= h ? (h-mapH)/2 : clamp(y,h-mapH,0);
+    image.style.transform = `translate3d(${x}px,${y}px,0) scale(${scale})`;
+    zoomDisplay.textContent = `${Math.round(scale/fitScale*100)}%`;
+    const miniW = minimap.clientWidth, miniH = minimap.clientHeight;
+    const left = clamp(-x/scale,0,W), top = clamp(-y/scale,0,H);
+    const right = clamp((w-x)/scale,0,W), bottom = clamp((h-y)/scale,0,H);
+    miniWindow.style.left = `${left/W*miniW}px`;
+    miniWindow.style.top = `${top/H*miniH}px`;
+    miniWindow.style.width = `${Math.max(0,(right-left)/W*miniW)}px`;
+    miniWindow.style.height = `${Math.max(0,(bottom-top)/H*miniH)}px`;
+  }
+  function computeFit() {
+    const {w,h} = dims();
+    fitScale = Math.min(w/W,h/H)*0.98;
+  }
+  function fitMap() {
+    if (!ready) return;
+    computeFit();
+    scale = fitScale;
+    const {w,h} = dims();
+    x = (w-W*scale)/2; y = (h-H*scale)/2;
+    render();
+  }
+  function zoomAt(factor, px, py) {
+    if (!ready) return;
+    const next = clamp(scale*factor,fitScale,fitScale*12);
+    const worldX = (px-x)/scale, worldY = (py-y)/scale;
+    x = px-worldX*next; y = py-worldY*next; scale = next;
+    render();
+  }
+  function zoomCenter(factor) { const {w,h} = dims(); zoomAt(factor,w/2,h/2); }
+  document.getElementById('zoomIn').addEventListener('click',()=>zoomCenter(1.5));
+  document.getElementById('zoomOut').addEventListener('click',()=>zoomCenter(1/1.5));
+  fitBtn.addEventListener('click',fitMap);
+  fullBtn.addEventListener('click',async()=>{
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await viewport.requestFullscreen();
+    } catch(e) { console.warn('Fullscreen unavailable:',e); }
+  });
+  document.addEventListener('fullscreenchange',()=>{
+    fullBtn.textContent = document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen';
+    setTimeout(onResize,0);
+  });
+  viewport.addEventListener('wheel',e=>{
+    if (!ready) return;
+    e.preventDefault();
+    const p=local(e.clientX,e.clientY);
+    const delta=e.deltaY*(e.deltaMode===1?16:e.deltaMode===2?viewport.clientHeight:1);
+    zoomAt(Math.exp(-clamp(delta,-350,350)*0.002),p.x,p.y);
+  },{passive:false});
+  viewport.addEventListener('dblclick',e=>{
+    if (e.target.closest('.minimap')) return;
+    const p=local(e.clientX,e.clientY); zoomAt(1.8,p.x,p.y);
+  });
+  function pairInfo() {
+    const [a,b]=Array.from(pointers.values());
+    return {cx:(a.x+b.x)/2,cy:(a.y+b.y)/2,dist:Math.hypot(a.x-b.x,a.y-b.y)};
+  }
+  viewport.addEventListener('pointerdown',e=>{
+    if (!ready || e.target.closest('.minimap')) return;
+    if (e.pointerType==='mouse' && e.button!==0) return;
+    viewport.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId,local(e.clientX,e.clientY));
+    viewport.classList.add('dragging');
+  });
+  viewport.addEventListener('pointermove',e=>{
+    if (!pointers.has(e.pointerId)) return;
+    const previous = pointers.size===2 ? pairInfo() : null;
+    const old = pointers.get(e.pointerId);
+    const now=local(e.clientX,e.clientY);
+    pointers.set(e.pointerId,now);
+    if (pointers.size===1) { x+=now.x-old.x; y+=now.y-old.y; }
+    else if (pointers.size===2 && previous) {
+      const next=pairInfo();
+      const nextScale=clamp(scale*next.dist/Math.max(previous.dist,1),fitScale,fitScale*12);
+      const worldX=(previous.cx-x)/scale, worldY=(previous.cy-y)/scale;
+      x=next.cx-worldX*nextScale; y=next.cy-worldY*nextScale; scale=nextScale;
+    }
+    render();
+  });
+  const endPointer=e=>{
+    pointers.delete(e.pointerId);
+    if (pointers.size===0) viewport.classList.remove('dragging');
+  };
+  viewport.addEventListener('pointerup',endPointer);
+  viewport.addEventListener('pointercancel',endPointer);
+  viewport.addEventListener('lostpointercapture',endPointer);
+  viewport.addEventListener('keydown',e=>{
+    if (!ready) return;
+    const step=e.shiftKey?180:80;
+    if (e.key==='ArrowLeft') x+=step;
+    else if (e.key==='ArrowRight') x-=step;
+    else if (e.key==='ArrowUp') y+=step;
+    else if (e.key==='ArrowDown') y-=step;
+    else if (e.key==='+' || e.key==='=') zoomCenter(1.4);
+    else if (e.key==='-' || e.key==='_') zoomCenter(1/1.4);
+    else if (e.key==='0' || e.key.toLowerCase()==='f') fitMap();
+    else return;
+    e.preventDefault(); render();
+  });
+  minimap.addEventListener('click',e=>{
+    if (!ready) return;
+    const rect=minimap.getBoundingClientRect();
+    const worldX=clamp((e.clientX-rect.left)/rect.width,0,1)*W;
+    const worldY=clamp((e.clientY-rect.top)/rect.height,0,1)*H;
+    const {w,h}=dims();
+    x=w/2-worldX*scale; y=h/2-worldY*scale; render();
+  });
+  function onResize() {
+    if (!ready) return;
+    const {w,h}=dims();
+    const wasFit=Math.abs(scale-fitScale)<0.00001;
+    const oldCenterX=(lastSize.w/2-x)/scale, oldCenterY=(lastSize.h/2-y)/scale;
+    computeFit();
+    scale=wasFit?fitScale:clamp(scale,fitScale,fitScale*12);
+    x=w/2-oldCenterX*scale; y=h/2-oldCenterY*scale;
+    lastSize={w,h}; render();
+  }
+  let lastSize={w:0,h:0};
+  new ResizeObserver(onResize).observe(viewport);
+  function init() {
+    if (ready) return;
+    ready=true;
+    loading.hidden=true;
+    const {w,h}=dims(); lastSize={w,h};
+    fitMap();
+  }
+  image.addEventListener('load',init);
+  image.addEventListener('error',()=>{loading.textContent='Map image not found. Place new-dolnath-2k.png next to map.html.';});
+  if (image.complete && image.naturalWidth) init();
+})();
+</script>
+</body>
+</html>
