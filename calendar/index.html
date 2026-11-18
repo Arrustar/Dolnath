@@ -7,7 +7,7 @@
 <title>Dolnath Calendar</title>
 </head>
 <body>
-<!-- Dolnath Calendar — GitHub Pages v1.6.5 -->
+<!-- Dolnath Calendar — GitHub Pages v1.6.6 -->
 <style>
 html,body{margin:0;padding:0;width:100%;background:#fbfaf6;color:#1d2430;font-family:Georgia,"Times New Roman",serif}
 *{box-sizing:border-box}
@@ -120,6 +120,59 @@ html,body{margin:0;padding:0;width:100%;background:#fbfaf6;color:#1d2430;font-fa
   margin-bottom:0;
 }
 
+
+.reference-entry{
+  border-top:1px solid #ddd8cd;
+}
+.reference-entry:first-child{
+  border-top:0;
+}
+.reference-entry > summary{
+  cursor:pointer;
+  padding:10px 0;
+  font-weight:700;
+  font-size:15px;
+  background:transparent;
+  user-select:none;
+}
+.reference-entry > summary:hover,
+.reference-entry > summary:focus{
+  background:#f8f6f1;
+  outline:none;
+}
+.reference-entry-body{
+  padding:0 0 12px 18px;
+}
+.reference-entry-meta{
+  margin-bottom:7px;
+  font-family:Arial,Helvetica,sans-serif;
+  font-size:12px;
+  color:#5f625f;
+}
+.lunar-panel{
+  margin:0 0 18px;
+  border:1px solid #c9c5b8;
+  border-radius:8px;
+  background:#fff;
+  overflow:hidden;
+}
+.lunar-panel > summary{
+  cursor:pointer;
+  padding:11px 13px;
+  font-family:Arial,Helvetica,sans-serif;
+  font-weight:700;
+  background:#f3f0e8;
+  user-select:none;
+}
+.lunar-panel > summary:hover,
+.lunar-panel > summary:focus{
+  background:#e9e5da;
+  outline:none;
+}
+#lunar-event-list{
+  padding:4px 14px 12px;
+}
+
 </style>
 
 <div class="dc-wrap">
@@ -145,6 +198,11 @@ html,body{margin:0;padding:0;width:100%;background:#fbfaf6;color:#1d2430;font-fa
   <details class="holiday-panel">
     <summary>Holidays &amp; Observances</summary>
     <div id="holiday-list"></div>
+  </details>
+
+  <details class="lunar-panel">
+    <summary>Lunar Events</summary>
+    <div id="lunar-event-list"></div>
   </details>
 
   <div id="detail-panel">
@@ -589,15 +647,65 @@ function renderHolidayReference(){
     if(e.locations.length) meta+=" · Observed in: "+e.locations.join(", ");
     if(e.cultures.length) meta+=" · Observed by: "+e.cultures.join(", ");
 
-    return '<section class="holiday-entry">'+
-      '<h3>'+esc(e.name)+'</h3>'+
-      '<div class="holiday-meta">'+esc(meta)+'</div>'+
-      '<div class="holiday-description">'+holidayDescriptionHtml(e.description)+'</div>'+
-      '</section>';
+    return '<details class="reference-entry">'+
+      '<summary>'+esc(e.name)+'</summary>'+
+      '<div class="reference-entry-body">'+
+        '<div class="reference-entry-meta">'+esc(meta)+'</div>'+
+        '<div class="holiday-description">'+holidayDescriptionHtml(e.description)+'</div>'+
+      '</div>'+
+      '</details>';
   }).join("");
 }
 
+
+function gcdInt(a,b){
+  a=Math.abs(a); b=Math.abs(b);
+  while(b){ var t=b; b=a%b; a=t; }
+  return a||1;
+}
+function lcmInt(a,b){
+  return Math.abs(a*b)/gcdInt(a,b);
+}
+function renderLunarEventReference(){
+  var holder=document.getElementById("lunar-event-list");
+  if(!holder) return;
+
+  var cycles=Object.keys(CONFIG.moons).map(function(k){ return CONFIG.moons[k].cycle; });
+  var fullCycle=cycles.reduce(function(acc,n){ return lcmInt(acc,n); },1);
+
+  var found={};
+  var order=[];
+  var d={year:304,month:1,day:1};
+
+  for(var i=0;i<fullCycle;i++){
+    lunarEventsOn(d).forEach(function(e){
+      if(!found[e.name]){
+        found[e.name]={
+          name:e.name,
+          type:e.type||"Lunar Event",
+          description:e.description||""
+        };
+        order.push(e.name);
+      }
+    });
+    d=addDays(d,1);
+  }
+
+  holder.innerHTML=order.map(function(name){
+    var e=found[name];
+    return '<details class="reference-entry">'+
+      '<summary>'+esc(e.name)+'</summary>'+
+      '<div class="reference-entry-body">'+
+        '<div class="reference-entry-meta">'+esc(e.type)+'</div>'+
+        '<div class="holiday-description">'+holidayDescriptionHtml(e.description)+'</div>'+
+      '</div>'+
+      '</details>';
+  }).join("");
+}
+
+
 renderHolidayReference();
+renderLunarEventReference();
 
 try{
   var saved=localStorage.getItem("dolnathSyncCode");
