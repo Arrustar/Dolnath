@@ -68,6 +68,52 @@ html,body{margin:0;padding:0;width:100%;background:#fbfaf6;color:#1d2430;font-fa
   outline:none;
 }
 
+
+.holiday-panel{
+  margin:14px auto 18px;
+  max-width:1400px;
+  border:1px solid #b5b0a4;
+  border-radius:8px;
+  background:rgba(255,255,255,.92);
+  overflow:hidden;
+}
+.holiday-panel summary{
+  cursor:pointer;
+  padding:12px 14px;
+  font-weight:bold;
+  font-size:15px;
+  background:#f3f0e8;
+  user-select:none;
+}
+.holiday-panel summary:hover,
+.holiday-panel summary:focus{
+  background:#e9e5da;
+  outline:none;
+}
+#holiday-list{
+  padding:10px 14px 14px;
+}
+.holiday-entry{
+  padding:10px 0;
+  border-top:1px solid #d8d3c8;
+}
+.holiday-entry:first-child{
+  border-top:0;
+}
+.holiday-entry h3{
+  margin:0 0 4px;
+  font-size:15px;
+}
+.holiday-meta{
+  font-size:12px;
+  opacity:.78;
+  margin-bottom:5px;
+}
+.holiday-description{
+  white-space:pre-line;
+  line-height:1.45;
+}
+
 </style>
 
 <div class="dc-wrap">
@@ -96,7 +142,13 @@ html,body{margin:0;padding:0;width:100%;background:#fbfaf6;color:#1d2430;font-fa
     <button type="button" onclick="closeDetails()">Close</button>
   </div>
 
-  <div id="calendar"></div>
+  
+<details class="holiday-panel">
+  <summary>Holidays &amp; Observances</summary>
+  <div id="holiday-list"></div>
+</details>
+
+<div id="calendar"></div>
 </div>
 
 <script>
@@ -132,9 +184,9 @@ html,body{margin:0;padding:0;width:100%;background:#fbfaf6;color:#1d2430;font-fa
             lunarOverride: { Xania: 'Full', Luistea: 'Full', Vugeon: 'Full' }
         },
         {
-            month: 'Heimlen', day: 7,
-            name: "Autumn's Gate", type: 'Holiday / Season Change', scope: 'global',
-            description: 'Autumn’s Gate is opened each year on the seventh day of Heimlen, when the warmth of Summer is formally surrendered and the realm turns toward the coming cold.\n\nMarks the formal beginning of Autumn.\n\nHomes, shops, temples, and city gates are decorated with red, orange, and gold leaves. The holiday focuses on transition, preparation, and completing unfinished business before Winter.\n\nDebts are traditionally settled, apprentices may complete periods of training, contracts are renewed, and families begin preparing their homes and stores for colder weather. Travelers returning from long journeys are particularly welcomed on Autumn’s Gate, while beginning an unnecessarily dangerous journey on this day is sometimes considered tempting fate.'
+            month: 'Heimlen', day: 25,
+            name: 'Harvest Concord', type: 'Holiday', scope: 'global',
+            description: 'Harvest Concord is a celebration of the season’s bounty and a day of gratitude to the Council of Gods for the blessings that allowed the harvest to prosper.\n\nEach year, three members of the Council are honored together as the Concord Triad. One is recognized as the First Honored, while the other two serve as the Companions of the Concord. Although the Triad receives special recognition during that year’s observance, prayers of thanks are still offered to the Council as a whole.\n\nCommunities throughout Dolnath celebrate with large public feasts where all are welcome, regardless of wealth, ancestry, or social standing. Farmers, merchants, temples, guilds, and families contribute what they can, with those of greater means traditionally expected to provide more so that everyone may share in the harvest.\n\nThe holiday reflects the belief that abundance is rarely the work of one hand—or even one god—but the result of many forces working in concord.'
         },
         {
             month: 'Torren', day: 5,
@@ -476,6 +528,61 @@ window.pollMiddleman=function(){
   s.onerror=function(){status.textContent="Unable to reach sync middleman."; if(s.parentNode)s.parentNode.removeChild(s);};
   document.body.appendChild(s);
 };
+
+
+function renderHolidayReference(){
+  var holder=document.getElementById("holiday-list");
+  if(!holder) return;
+
+  var items=[];
+
+  FIXED_EVENTS.forEach(function(e){
+    items.push({
+      name:e.name,
+      month:e.month,
+      day:e.day,
+      type:e.type,
+      scope:eventScope(e),
+      locations:e.locations||[],
+      cultures:e.cultures||[],
+      description:e.description||""
+    });
+  });
+
+  // Veilnight is dynamic by weekday/week, but belongs in the holiday reference.
+  items.push({
+    name:VEILNIGHT.name,
+    month:VEILNIGHT.month,
+    day:null,
+    type:VEILNIGHT.type,
+    scope:eventScope(VEILNIGHT),
+    locations:VEILNIGHT.locations||[],
+    cultures:VEILNIGHT.cultures||[],
+    description:VEILNIGHT.description||""
+  });
+
+  items.sort(function(a,b){
+    var am=CONFIG.months.indexOf(a.month), bm=CONFIG.months.indexOf(b.month);
+    if(am!==bm) return am-bm;
+    return (a.day||0)-(b.day||0);
+  });
+
+  holder.innerHTML=items.map(function(e){
+    var when=e.day ? (e.day+" "+e.month) :
+      ("Torgen of the 4th week of "+e.month);
+    var meta=when+" · Scope: "+scopeLabel(e);
+    if(e.locations.length) meta+=" · Observed in: "+e.locations.join(", ");
+    if(e.cultures.length) meta+=" · Observed by: "+e.cultures.join(", ");
+    return '<section class="holiday-entry">'+
+      '<h3>'+esc(e.name)+'</h3>'+
+      '<div class="holiday-meta">'+esc(meta)+'</div>'+
+      '<div class="holiday-description">'+renderDescription(e.description)+'</div>'+
+      '</section>';
+  }).join("");
+}
+
+
+renderHolidayReference();
 
 try{
   var saved=localStorage.getItem("dolnathSyncCode");
