@@ -7,7 +7,7 @@
 <title>Dolnath Calendar</title>
 </head>
 <body>
-<!-- Dolnath Calendar — GitHub Pages v1.6.0 -->
+<!-- Dolnath Calendar — GitHub Pages v1.6.5 -->
 <style>
 html,body{margin:0;padding:0;width:100%;background:#fbfaf6;color:#1d2430;font-family:Georgia,"Times New Roman",serif}
 *{box-sizing:border-box}
@@ -70,18 +70,17 @@ html,body{margin:0;padding:0;width:100%;background:#fbfaf6;color:#1d2430;font-fa
 
 
 .holiday-panel{
-  margin:14px auto 18px;
-  max-width:1400px;
-  border:1px solid #b5b0a4;
+  margin:0 0 18px;
+  border:1px solid #c9c5b8;
   border-radius:8px;
-  background:rgba(255,255,255,.92);
+  background:#fff;
   overflow:hidden;
 }
 .holiday-panel summary{
   cursor:pointer;
-  padding:12px 14px;
-  font-weight:bold;
-  font-size:15px;
+  padding:11px 13px;
+  font-family:Arial,Helvetica,sans-serif;
+  font-weight:700;
   background:#f3f0e8;
   user-select:none;
 }
@@ -91,27 +90,34 @@ html,body{margin:0;padding:0;width:100%;background:#fbfaf6;color:#1d2430;font-fa
   outline:none;
 }
 #holiday-list{
-  padding:10px 14px 14px;
+  padding:4px 14px 12px;
 }
 .holiday-entry{
-  padding:10px 0;
-  border-top:1px solid #d8d3c8;
+  padding:11px 0;
+  border-top:1px solid #ddd8cd;
 }
 .holiday-entry:first-child{
   border-top:0;
 }
 .holiday-entry h3{
   margin:0 0 4px;
-  font-size:15px;
+  font-size:16px;
 }
 .holiday-meta{
+  margin-bottom:7px;
+  font-family:Arial,Helvetica,sans-serif;
   font-size:12px;
-  opacity:.78;
-  margin-bottom:5px;
+  color:#5f625f;
 }
 .holiday-description{
-  white-space:pre-line;
+  font-size:14px;
   line-height:1.45;
+}
+.holiday-description p{
+  margin:0 0 8px;
+}
+.holiday-description p:last-child{
+  margin-bottom:0;
 }
 
 </style>
@@ -135,6 +141,12 @@ html,body{margin:0;padding:0;width:100%;background:#fbfaf6;color:#1d2430;font-fa
     <button type="button" onclick="pollMiddleman()">Check Now</button>
   </div>
 
+
+  <details class="holiday-panel">
+    <summary>Holidays &amp; Observances</summary>
+    <div id="holiday-list"></div>
+  </details>
+
   <div id="detail-panel">
     <h3 id="detail-title"></h3>
     <div id="detail-meta"></div>
@@ -142,13 +154,7 @@ html,body{margin:0;padding:0;width:100%;background:#fbfaf6;color:#1d2430;font-fa
     <button type="button" onclick="closeDetails()">Close</button>
   </div>
 
-  
-<details class="holiday-panel">
-  <summary>Holidays &amp; Observances</summary>
-  <div id="holiday-list"></div>
-</details>
-
-<div id="calendar"></div>
+  <div id="calendar"></div>
 </div>
 
 <script>
@@ -530,57 +536,66 @@ window.pollMiddleman=function(){
 };
 
 
+function holidayDescriptionHtml(text){
+  return String(text||"")
+    .split(/\n\s*\n/)
+    .map(function(p){ return '<p>'+esc(p).replace(/\n/g,'<br>')+'</p>'; })
+    .join('');
+}
+
 function renderHolidayReference(){
   var holder=document.getElementById("holiday-list");
   if(!holder) return;
 
-  var items=[];
-
-  FIXED_EVENTS.forEach(function(e){
-    items.push({
+  var items=FIXED_EVENTS.map(function(e){
+    return {
       name:e.name,
       month:e.month,
       day:e.day,
-      type:e.type,
       scope:eventScope(e),
       locations:e.locations||[],
       cultures:e.cultures||[],
-      description:e.description||""
-    });
+      description:e.description||"",
+      dynamic:false
+    };
   });
 
-  // Veilnight is dynamic by weekday/week, but belongs in the holiday reference.
   items.push({
     name:VEILNIGHT.name,
     month:VEILNIGHT.month,
     day:null,
-    type:VEILNIGHT.type,
     scope:eventScope(VEILNIGHT),
     locations:VEILNIGHT.locations||[],
     cultures:VEILNIGHT.cultures||[],
-    description:VEILNIGHT.description||""
+    description:VEILNIGHT.description||"",
+    dynamic:true
   });
 
   items.sort(function(a,b){
-    var am=CONFIG.months.indexOf(a.month), bm=CONFIG.months.indexOf(b.month);
+    var am=CONFIG.months.indexOf(a.month);
+    var bm=CONFIG.months.indexOf(b.month);
     if(am!==bm) return am-bm;
-    return (a.day||0)-(b.day||0);
+    var ad=a.day===null ? ((VEILNIGHT.week-1)*CONFIG.weekdays.length+1) : a.day;
+    var bd=b.day===null ? ((VEILNIGHT.week-1)*CONFIG.weekdays.length+1) : b.day;
+    return ad-bd;
   });
 
   holder.innerHTML=items.map(function(e){
-    var when=e.day ? (e.day+" "+e.month) :
-      ("Torgen of the 4th week of "+e.month);
+    var when=e.dynamic
+      ? (VEILNIGHT.weekday+" of the "+ordinal(VEILNIGHT.week)+" week of "+VEILNIGHT.month)
+      : (e.day+" "+e.month);
+
     var meta=when+" · Scope: "+scopeLabel(e);
     if(e.locations.length) meta+=" · Observed in: "+e.locations.join(", ");
     if(e.cultures.length) meta+=" · Observed by: "+e.cultures.join(", ");
+
     return '<section class="holiday-entry">'+
       '<h3>'+esc(e.name)+'</h3>'+
       '<div class="holiday-meta">'+esc(meta)+'</div>'+
-      '<div class="holiday-description">'+renderDescription(e.description)+'</div>'+
+      '<div class="holiday-description">'+holidayDescriptionHtml(e.description)+'</div>'+
       '</section>';
   }).join("");
 }
-
 
 renderHolidayReference();
 
