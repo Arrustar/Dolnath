@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101d28">
-  <meta name="description" content="Explore Dolnath, the Freewind Expanse, and the Grand Meridian trade corridor.">
+  <meta name="description" content="Explore Dolnath, its named regions, and the Grand Meridian trade corridor.">
   <title>Explore Dolnath — Interactive Map</title>
   <style>
     :root { color-scheme: dark; --bg:#101d28; --panel:#172734; --panel-2:#203746; --line:#405666; --ink:#f3f0e8; --muted:#b9c5cb; --gold:#d8b77d; }
@@ -36,9 +36,22 @@
     .route-main { fill:none; stroke:#ffe5a4; stroke-width:8; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:18 13; filter:drop-shadow(0 2px 2px #17110e); }
     .route-branch { fill:none; stroke:#e8c58a; stroke-width:6; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:11 14; opacity:.9; filter:drop-shadow(0 2px 2px #17110e); }
     .route-stop { fill:#f9dfa4; stroke:#48311a; stroke-width:4; }
-    .region-tag { fill:#142b36d9; stroke:#e7c895; stroke-width:2.5; }
-    .region-title { font: bold 28px Georgia,serif; fill:#fff0cc; letter-spacing:1px; paint-order:stroke; stroke:#1a2831; stroke-width:3; }
-    .map-overlay .route-group[hidden] { display:none; }
+    .region-label .region-tag { fill:#142b36e8; stroke:#d8b77d; stroke-width:1.8; }
+    .region-label .region-title { font: bold 22px Georgia,serif; fill:#fff0cc; letter-spacing:.4px; paint-order:stroke; stroke:#142b36; stroke-width:2; }
+    .region-label[data-category="Realm"] .region-tag { fill:#2a2638e8; stroke:#c9a8e4; }
+    .map-overlay .route-group[hidden], .map-overlay .region-label[hidden] { display:none; }
+    .layer-panel { position:absolute; top:60px; right:16px; z-index:5; width:min(350px,calc(100% - 32px)); max-height:min(74vh,680px); overflow:auto; background:#10232df5; border:1px solid #71817f; border-radius:11px; padding:15px 16px; box-shadow:0 12px 35px #0009; font:13px/1.5 system-ui,sans-serif; }
+    .layer-panel[hidden] { display:none; }
+    .layer-panel h2 { margin:0 0 4px; color:#ffe3ae; font:normal 23px Georgia,serif; }
+    .layer-panel .muted { color:#c0c9ca; font-size:12px; margin:0 0 9px; }
+    .layer-panel .close { float:right; border:0; padding:0 5px; min-height:28px; font-size:19px; background:transparent; }
+    .layer-panel .bulk-actions { display:flex; gap:7px; margin:9px 0; }
+    .layer-panel .bulk-actions button { flex:1; min-height:30px; padding:4px 7px; }
+    .layer-panel h3 { margin:14px 0 5px; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:#f0d7a5; }
+    .layer-panel label { display:flex; align-items:center; gap:9px; min-height:32px; padding:3px 4px; cursor:pointer; border-radius:5px; }
+    .layer-panel label:hover { background:#28404b; }
+    .layer-panel input { accent-color:#e4c184; width:16px; height:16px; flex-shrink:0; }
+    .layer-panel .footnote { border-top:1px solid #52636a; padding-top:10px; margin-top:13px; font-size:11px; color:#c3cbd0; }
     .map-key { position:absolute; left:16px; top:16px; z-index:3; display:flex; align-items:center; gap:9px; background:#10222ce8; border:1px solid #6b7d7d; border-radius:8px; padding:8px 11px; font:12px system-ui,sans-serif; pointer-events:none; box-shadow:0 3px 12px #0004; }
     .map-key[hidden] { display:none; }
     .map-key .dash { width:27px; border-top:3px dashed #ffe5a4; }
@@ -72,12 +85,14 @@
       .map-key { left:9px; top:9px; padding:6px 8px; font-size:11px; }
       .map-key .note { display:none; }
       .route-panel { left:9px; top:48px; max-height:60vh; }
+      .layer-panel { right:9px; top:48px; max-height:60vh; }
     }
     @media (max-width:460px) {
       header { flex-wrap:wrap; gap:8px; }
       .controls { width:100%; justify-content:space-between; }
       .home-link { margin-left:auto; }
       .route-panel { top:52px; }
+      .layer-panel { top:52px; }
       .help .desktop-help { display:none; }
     }
     @media (prefers-reduced-motion:reduce) { * { transition:none!important; } }
@@ -97,6 +112,7 @@
       <button id="fit" type="button" title="Show entire map">Fit map</button>
       <button id="toggleRoutes" type="button" aria-pressed="true" title="Show or hide the Grand Meridian guide">Hide route</button>
       <button id="routeGuide" type="button" aria-expanded="false" aria-controls="routePanel">Route guide</button>
+      <button id="regionLayers" type="button" aria-expanded="false" aria-controls="layerPanel">Regions</button>
       <button id="fullscreen" type="button" title="Toggle fullscreen">Fullscreen</button>
       <span class="separator" aria-hidden="true"></span>
       <a class="home-link" href="../index.html" title="Return to your site's home page">Home</a>
@@ -104,25 +120,85 @@
   </header>
   <main id="viewport" class="viewport" tabindex="0" role="region" aria-label="Interactive map of Dolnath. Use the mouse wheel to zoom, drag to move, or use arrow keys and plus/minus keys.">
     <img id="mapImage" class="map-image" src="new-dolnath-2k.png" alt="Illustrated map of the world of Dolnath" draggable="false">
-    <!-- Overlay coordinates use the 2048 × 1536 source artwork. Routes are schematic,
+    <!-- Overlay coordinates use the latest 2048 × 1536 New Dolnath 2K source artwork. Routes are schematic,
          not surveyed roads. Only visually identified settlements are marked. -->
     <svg id="mapOverlay" class="map-overlay" viewBox="0 0 2048 1536" aria-hidden="true">
       <g id="routeGroup" class="route-group">
-        <path class="route-main" d="M 112 375 C 192 376 252 385 329 383 S 455 354 500 355 S 660 390 744 426 S 852 558 888 632 S 1048 646 1166 635 S 1395 640 1486 640" />
-        <path class="route-branch" d="M 888 632 Q 909 665 950 694" />
-        <path class="route-branch" d="M 1486 640 Q 1642 593 1799 466" />
-        <path class="route-branch" d="M 1486 640 Q 1570 690 1666 825" />
-        <circle class="route-stop" cx="112" cy="375" r="11" />
-        <circle class="route-stop" cx="329" cy="383" r="10" />
-        <circle class="route-stop" cx="888" cy="632" r="10" />
-        <circle class="route-stop" cx="950" cy="694" r="9" />
-        <circle class="route-stop" cx="1166" cy="635" r="10" />
-        <circle class="route-stop" cx="1486" cy="640" r="12" />
-        <circle class="route-stop" cx="1799" cy="466" r="10" />
+        <!-- Schematic only: now explicitly anchored at Yavalian (487,354) and Mythalon (714,519). -->
+        <path class="route-main" d="M 65 367 C 145 370 248 408 348 393 C 401 371 448 350 487 354 C 548 373 606 455 655 495 Q 683 518 714 519 C 782 553 847 596 890 622 Q 910 660 943 687 C 1000 674 1075 647 1153 646 S 1360 638 1485 636" />
+        <path class="route-branch" d="M 1485 636 C 1565 593 1674 529 1790 468" />
+        <path class="route-branch" d="M 1485 636 C 1600 649 1723 711 1810 791 S 1912 954 1825 1110" />
+        <circle class="route-stop" cx="65" cy="367" r="10" />
+        <circle class="route-stop" cx="348" cy="393" r="10" />
+        <circle class="route-stop" cx="487" cy="354" r="11" />
+        <circle class="route-stop" cx="714" cy="519" r="11" />
+        <circle class="route-stop" cx="890" cy="622" r="10" />
+        <circle class="route-stop" cx="943" cy="687" r="9" />
+        <circle class="route-stop" cx="1153" cy="646" r="10" />
+        <circle class="route-stop" cx="1485" cy="636" r="12" />
+        <circle class="route-stop" cx="1790" cy="468" r="10" />
       </g>
-      <g aria-label="Freewind Expanse label">
-        <rect class="region-tag" x="1041" y="359" rx="10" width="304" height="51" />
-        <text class="region-title" x="1193" y="394" text-anchor="middle">Freewind Expanse</text>
+      <g id="regionsGroup" aria-label="Named geographic regions and realms">
+        <g class="region-label" id="region-vardheim" data-category="Realm" transform="translate(425 175)" aria-label="The Freeholds of Vardheim">
+          <rect class="region-tag" x="-160" y="-22" width="320" height="40" rx="8"/>
+          <text class="region-title" text-anchor="middle" y="7">The Freeholds of Vardheim</text>
+        </g>
+        <g class="region-label" id="region-serenhir" data-category="Realm" transform="translate(208 472)" aria-label="Serenhir">
+          <rect class="region-tag" x="-69" y="-22" width="138" height="40" rx="8"/>
+          <text class="region-title" text-anchor="middle" y="7">Serenhir</text>
+        </g>
+        <g class="region-label" id="region-aldoria" data-category="Realm" transform="translate(1040 1185)" aria-label="Aldoria">
+          <rect class="region-tag" x="-69" y="-22" width="138" height="40" rx="8"/>
+          <text class="region-title" text-anchor="middle" y="7">Aldoria</text>
+        </g>
+        <g class="region-label" id="region-khasambe" data-category="Realm" transform="translate(395 1040)" aria-label="Khasambe">
+          <rect class="region-tag" x="-69" y="-22" width="138" height="40" rx="8"/>
+          <text class="region-title" text-anchor="middle" y="7">Khasambe</text>
+        </g>
+        <g class="region-label" id="region-lodahr" data-category="Realm" transform="translate(1490 405)" aria-label="The Ironholds of Lodahr">
+          <rect class="region-tag" x="-155" y="-22" width="310" height="40" rx="8"/>
+          <text class="region-title" text-anchor="middle" y="7">The Ironholds of Lodahr</text>
+        </g>
+        <g class="region-label" id="region-hilldwarves" data-category="Realm" transform="translate(1840 1220)" aria-label="Hill Dwarf Domain">
+          <rect class="region-tag" x="-118" y="-22" width="236" height="40" rx="8"/>
+          <text class="region-title" text-anchor="middle" y="7">Hill Dwarf Domain</text>
+        </g>
+        <g class="region-label" id="region-farwind" data-category="Landscape" transform="translate(1040 416)" aria-label="Farwind Expanse">
+          <rect class="region-tag" x="-106" y="-22" width="212" height="40" rx="8"/>
+          <text class="region-title" text-anchor="middle" y="7">Farwind Expanse</text>
+        </g>
+        <g class="region-label" id="region-amberreach" data-category="Landscape" transform="translate(1155 728)" aria-label="The Amberreach">
+          <rect class="region-tag" x="-99.5" y="-22" width="199" height="40" rx="8"/>
+          <text class="region-title" text-anchor="middle" y="7">The Amberreach</text>
+        </g>
+        <g class="region-label" id="region-verdant" data-category="Landscape" transform="translate(1450 675)" aria-label="The Verdant Knolls">
+          <rect class="region-tag" x="-124" y="-22" width="248" height="40" rx="8"/>
+          <text class="region-title" text-anchor="middle" y="7">The Verdant Knolls</text>
+        </g>
+        <g class="region-label" id="region-gloamfen" data-category="Landscape" transform="translate(1785 615)" aria-label="The Gloamfen">
+          <rect class="region-tag" x="-87.5" y="-22" width="175" height="40" rx="8"/>
+          <text class="region-title" text-anchor="middle" y="7">The Gloamfen</text>
+        </g>
+        <g class="region-label" id="region-crucible" data-category="Landscape" transform="translate(1475 925)" aria-label="The Ashen Crucible">
+          <rect class="region-tag" x="-124" y="-22" width="248" height="40" rx="8"/>
+          <text class="region-title" text-anchor="middle" y="7">The Ashen Crucible</text>
+        </g>
+        <g class="region-label" id="region-coho" data-category="Landscape" transform="translate(1840 795)" aria-label="Forest of Coho">
+          <rect class="region-tag" x="-99.5" y="-22" width="199" height="40" rx="8"/>
+          <text class="region-title" text-anchor="middle" y="7">Forest of Coho</text>
+        </g>
+        <g class="region-label" id="region-jungle" data-category="Landscape" transform="translate(1080 864)" aria-label="Ebon Jungle">
+          <rect class="region-tag" x="-81" y="-22" width="162" height="40" rx="8"/>
+          <text class="region-title" text-anchor="middle" y="7">Ebon Jungle</text>
+        </g>
+        <g class="region-label" id="region-zambari" data-category="Landscape" transform="translate(390 942)" aria-label="The Zambari Expanse">
+          <rect class="region-tag" x="-130.5" y="-22" width="261" height="40" rx="8"/>
+          <text class="region-title" text-anchor="middle" y="7">The Zambari Expanse</text>
+        </g>
+        <g class="region-label" id="region-whiteglass" data-category="Landscape" transform="translate(415 790)" aria-label="The Whiteglass Flats">
+          <rect class="region-tag" x="-136.5" y="-22" width="273" height="40" rx="8"/>
+          <text class="region-title" text-anchor="middle" y="7">The Whiteglass Flats</text>
+        </g>
       </g>
     </svg>
     <div class="map-key"><span class="dash" aria-hidden="true"></span><span>Grand Meridian</span><span class="note">· schematic trade corridor</span></div>
@@ -134,17 +210,41 @@
       <ol>
         <li><button class="place" data-jump="ashel">Ashel Caelora</button></li>
         <li><button class="place" data-jump="malelion">Malelion</button></li>
-        <li>Yavlaian <span class="muted">(exact image position unconfirmed)</span></li>
-        <li>Mythalyn <span class="muted">(exact image position unconfirmed)</span></li>
+        <li><button class="place" data-jump="yavalian">Yavalian</button></li>
+        <li><button class="place" data-jump="mythalon">Mythalon</button></li>
         <li><button class="place" data-jump="shadegarde">Shadegarde</button> and <button class="place" data-jump="blackwharf">Blackwharf</button></li>
         <li><button class="place" data-jump="riverbrook">Riverbrook</button></li>
         <li><button class="place" data-jump="reedhaven">Reedhaven</button> — eastern junction</li>
       </ol>
       <h3>Branches beyond Reedhaven</h3>
       <p>Northeast to <button class="place" data-jump="shiremire">Shiremire</button>; southeast toward Hill Dwarf territory.</p>
-      <h3>The Freewind Expanse</h3>
+      <h3>The Farwind Expanse</h3>
       <p>The northern nomadic steppe is <strong>not</strong> on the main Grand Meridian. Secondary routes connect it to the southern commercial corridor.</p>
-      <div class="notice">The highlighted line illustrates the general trade corridor, not an exact surveyed road or guaranteed safe passage. The original map artwork is unchanged. The source artwork appears to label Yavlaian differently and does not clearly locate Mythalyn; their positions have not been guessed.</div>
+      <div class="notice">The highlighted line is schematic, not a surveyed road or guaranteed safe passage. Yavalian and Mythalon are anchored to the two settlements circled in the supplied screenshot. The latest source artwork is used without redrawing it.</div>
+    </aside>
+    <aside id="layerPanel" class="layer-panel" aria-label="Region overlay controls" hidden>
+      <button class="close" id="closeLayers" type="button" aria-label="Close region controls">×</button>
+      <h2>Regions of Dolnath</h2>
+      <p class="muted">Show or hide named regions independently. Labels are approximate placements, not political boundaries.</p>
+      <div class="bulk-actions"><button id="showAllRegions" type="button">Show all</button><button id="hideAllRegions" type="button">Hide all</button></div>
+      <h3>Kingdoms & territories</h3>
+      <label><input type="checkbox" data-region-toggle="vardheim" checked><span>The Freeholds of Vardheim</span></label>
+      <label><input type="checkbox" data-region-toggle="serenhir" checked><span>Serenhir</span></label>
+      <label><input type="checkbox" data-region-toggle="aldoria" checked><span>Aldoria</span></label>
+      <label><input type="checkbox" data-region-toggle="khasambe" checked><span>Khasambe</span></label>
+      <label><input type="checkbox" data-region-toggle="lodahr" checked><span>The Ironholds of Lodahr</span></label>
+      <label><input type="checkbox" data-region-toggle="hilldwarves" checked><span>Hill Dwarf Domain</span></label>
+      <h3>Natural regions</h3>
+      <label><input type="checkbox" data-region-toggle="farwind" checked><span>Farwind Expanse</span></label>
+      <label><input type="checkbox" data-region-toggle="amberreach" checked><span>The Amberreach</span></label>
+      <label><input type="checkbox" data-region-toggle="verdant" checked><span>The Verdant Knolls</span></label>
+      <label><input type="checkbox" data-region-toggle="gloamfen" checked><span>The Gloamfen</span></label>
+      <label><input type="checkbox" data-region-toggle="crucible" checked><span>The Ashen Crucible</span></label>
+      <label><input type="checkbox" data-region-toggle="coho" checked><span>Forest of Coho</span></label>
+      <label><input type="checkbox" data-region-toggle="jungle" checked><span>Ebon Jungle</span></label>
+      <label><input type="checkbox" data-region-toggle="zambari" checked><span>The Zambari Expanse</span></label>
+      <label><input type="checkbox" data-region-toggle="whiteglass" checked><span>The Whiteglass Flats</span></label>
+      <div class="footnote">Regional naming follows the later Organizational Structure discussion. The northern steppe is listed there as <strong>Farwind Expanse</strong> (previous map: Freewind Expanse). Mountain-range names are part of the source artwork and are not separate toggleable overlays. The floating kingdom of Azuros is not depicted on this 2D source map. Hill Dwarf Domain remains a descriptive label pending a formal name.</div>
     </aside>
     <div id="loading" class="loading">Loading Dolnath map…</div>
     <div class="help"><span class="desktop-help">Scroll to zoom · Drag to explore · Double-click to zoom<br></span>Touch: drag to move · Pinch to zoom</div>
@@ -226,18 +326,39 @@
     toggleRoutes.textContent = visible ? 'Hide route' : 'Show route';
     document.querySelector('.map-key').hidden = !visible;
   });
+  const layerPanel = document.getElementById('layerPanel');
+  const layersButton = document.getElementById('regionLayers');
+  const regionCheckboxes = Array.from(layerPanel.querySelectorAll('input[data-region-toggle]'));
+  function setLayers(open) {
+    layerPanel.hidden = !open;
+    layersButton.setAttribute('aria-expanded',String(open));
+    if (open) setGuide(false);
+  }
+  layersButton.addEventListener('click',()=>setLayers(layerPanel.hidden));
+  document.getElementById('closeLayers').addEventListener('click',()=>setLayers(false));
+  function setRegionVisibility(id, visible) {
+    const el = document.getElementById(`region-${id}`);
+    if (el) el.hidden = !visible;
+  }
+  regionCheckboxes.forEach(cb => cb.addEventListener('change', () => setRegionVisibility(cb.dataset.regionToggle,cb.checked)));
+  for (const [buttonId,show] of [['showAllRegions',true],['hideAllRegions',false]]) {
+    document.getElementById(buttonId).addEventListener('click',()=>{
+      regionCheckboxes.forEach(cb=>{ cb.checked=show; setRegionVisibility(cb.dataset.regionToggle,show); });
+    });
+  }
   const routePanel = document.getElementById('routePanel');
   const guideButton = document.getElementById('routeGuide');
   function setGuide(open) {
     routePanel.hidden = !open;
+    if (open) { layerPanel.hidden = true; layersButton.setAttribute('aria-expanded','false'); }
     guideButton.setAttribute('aria-expanded',String(open));
   }
   guideButton.addEventListener('click',()=>setGuide(routePanel.hidden));
   document.getElementById('closeGuide').addEventListener('click',()=>setGuide(false));
   const anchors = {
-    ashel:[112,375], malelion:[329,383], shadegarde:[888,632],
-    blackwharf:[950,694], riverbrook:[1166,635], reedhaven:[1486,640],
-    shiremire:[1799,466]
+    ashel:[65,367], malelion:[348,393], yavalian:[487,354], mythalon:[714,519],
+    shadegarde:[890,622], blackwharf:[943,687], riverbrook:[1153,646], reedhaven:[1485,636],
+    shiremire:[1790,468]
   };
   routePanel.addEventListener('click',e=>{
     const btn=e.target.closest('button[data-jump]');
@@ -276,7 +397,7 @@
     return {cx:(a.x+b.x)/2,cy:(a.y+b.y)/2,dist:Math.hypot(a.x-b.x,a.y-b.y)};
   }
   viewport.addEventListener('pointerdown',e=>{
-    if (!ready || e.target.closest('.minimap, .route-panel')) return;
+    if (!ready || e.target.closest('.minimap, .route-panel, .layer-panel')) return;
     if (e.pointerType==='mouse' && e.button!==0) return;
     viewport.setPointerCapture(e.pointerId);
     pointers.set(e.pointerId,local(e.clientX,e.clientY));
