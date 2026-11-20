@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101d28">
-  <meta name="description" content="Explore the map of Dolnath. Zoom, drag, and inspect the world in detail.">
+  <meta name="description" content="Explore Dolnath, the Freewind Expanse, and the Grand Meridian trade corridor.">
   <title>Explore Dolnath — Interactive Map</title>
   <style>
     :root { color-scheme: dark; --bg:#101d28; --panel:#172734; --panel-2:#203746; --line:#405666; --ink:#f3f0e8; --muted:#b9c5cb; --gold:#d8b77d; }
@@ -31,6 +31,30 @@
     .minimap { position:absolute; right:16px; bottom:16px; width:188px; aspect-ratio:4/3; z-index:4; border:1px solid #a5a7a1; border-radius:7px; background:#1a2e3c; box-shadow:0 3px 15px #0008; overflow:hidden; cursor:crosshair; }
     .minimap img { width:100%; height:100%; object-fit:fill; display:block; pointer-events:none; opacity:.83; }
     .mini-window { position:absolute; border:2px solid #ffe1a3; background:#ffdf8a1f; box-shadow:0 0 0 1px #10202a; pointer-events:none; }
+    /* Geographic annotations are separate from the original artwork and can be hidden. */
+    .map-overlay { position:absolute; top:0; left:0; display:block; width:2048px; height:1536px; max-width:none; transform-origin:0 0; pointer-events:none; will-change:transform; overflow:visible; }
+    .route-main { fill:none; stroke:#ffe5a4; stroke-width:8; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:18 13; filter:drop-shadow(0 2px 2px #17110e); }
+    .route-branch { fill:none; stroke:#e8c58a; stroke-width:6; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:11 14; opacity:.9; filter:drop-shadow(0 2px 2px #17110e); }
+    .route-stop { fill:#f9dfa4; stroke:#48311a; stroke-width:4; }
+    .region-tag { fill:#142b36d9; stroke:#e7c895; stroke-width:2.5; }
+    .region-title { font: bold 28px Georgia,serif; fill:#fff0cc; letter-spacing:1px; paint-order:stroke; stroke:#1a2831; stroke-width:3; }
+    .map-overlay .route-group[hidden] { display:none; }
+    .map-key { position:absolute; left:16px; top:16px; z-index:3; display:flex; align-items:center; gap:9px; background:#10222ce8; border:1px solid #6b7d7d; border-radius:8px; padding:8px 11px; font:12px system-ui,sans-serif; pointer-events:none; box-shadow:0 3px 12px #0004; }
+    .map-key[hidden] { display:none; }
+    .map-key .dash { width:27px; border-top:3px dashed #ffe5a4; }
+    .map-key .note { color:#bfc8c9; font-size:11px; }
+    .route-panel { position:absolute; top:60px; left:16px; z-index:5; width:min(340px,calc(100% - 32px)); max-height:min(68vh,590px); overflow:auto; background:#10232df2; border:1px solid #71817f; border-radius:11px; padding:16px 17px; box-shadow:0 12px 35px #0009; font:13px/1.5 system-ui,sans-serif; }
+    .route-panel[hidden] { display:none; }
+    .route-panel h2 { margin:0 0 4px; color:#ffe3ae; font:normal 23px Georgia,serif; }
+    .route-panel h3 { margin:16px 0 6px; color:#f4e0bc; font-size:13px; }
+    .route-panel p { margin:7px 0 10px; color:#d5dedf; }
+    .route-panel ol { margin:0 0 10px; padding-left:21px; }
+    .route-panel li { padding:2px 0; }
+    .route-panel .muted { color:#bdc7ca; font-size:12px; }
+    .route-panel .place { color:#ffe2ab; background:none; border:0; min-height:0; padding:0; font:inherit; font-weight:600; text-decoration:underline dotted; text-underline-offset:3px; cursor:pointer; }
+    .route-panel .place:hover { color:white; }
+    .route-panel .close { float:right; border:0; padding:0 5px; min-height:28px; font-size:19px; background:transparent; }
+    .route-panel .notice { margin-top:12px; border-top:1px solid #52636a; padding-top:10px; font-size:11px; color:#c3cbd0; }
     .loading { position:absolute; inset:0; z-index:3; display:grid; place-items:center; font:15px system-ui,sans-serif; color:#e3d5ba; pointer-events:none; }
     .loading[hidden] { display:none; }
     .viewport:fullscreen { background:#263c49; }
@@ -45,11 +69,15 @@
       .separator { display:none; }
       .minimap { width:128px; right:9px; bottom:9px; }
       .help { left:9px; bottom:9px; max-width:calc(100% - 150px); font-size:11px; padding:6px 8px; }
+      .map-key { left:9px; top:9px; padding:6px 8px; font-size:11px; }
+      .map-key .note { display:none; }
+      .route-panel { left:9px; top:48px; max-height:60vh; }
     }
     @media (max-width:460px) {
       header { flex-wrap:wrap; gap:8px; }
       .controls { width:100%; justify-content:space-between; }
       .home-link { margin-left:auto; }
+      .route-panel { top:52px; }
       .help .desktop-help { display:none; }
     }
     @media (prefers-reduced-motion:reduce) { * { transition:none!important; } }
@@ -67,13 +95,57 @@
       <span id="zoomDisplay" class="zoom-display" aria-live="off">100%</span>
       <button class="zoom-btn" id="zoomIn" type="button" title="Zoom in" aria-label="Zoom in">+</button>
       <button id="fit" type="button" title="Show entire map">Fit map</button>
+      <button id="toggleRoutes" type="button" aria-pressed="true" title="Show or hide the Grand Meridian guide">Hide route</button>
+      <button id="routeGuide" type="button" aria-expanded="false" aria-controls="routePanel">Route guide</button>
       <button id="fullscreen" type="button" title="Toggle fullscreen">Fullscreen</button>
       <span class="separator" aria-hidden="true"></span>
-      <a class="home-link" href="index.html" title="Return to your site's home page">Home</a>
+      <a class="home-link" href="../index.html" title="Return to your site's home page">Home</a>
     </nav>
   </header>
   <main id="viewport" class="viewport" tabindex="0" role="region" aria-label="Interactive map of Dolnath. Use the mouse wheel to zoom, drag to move, or use arrow keys and plus/minus keys.">
     <img id="mapImage" class="map-image" src="new-dolnath-2k.png" alt="Illustrated map of the world of Dolnath" draggable="false">
+    <!-- Overlay coordinates use the 2048 × 1536 source artwork. Routes are schematic,
+         not surveyed roads. Only visually identified settlements are marked. -->
+    <svg id="mapOverlay" class="map-overlay" viewBox="0 0 2048 1536" aria-hidden="true">
+      <g id="routeGroup" class="route-group">
+        <path class="route-main" d="M 112 375 C 192 376 252 385 329 383 S 455 354 500 355 S 660 390 744 426 S 852 558 888 632 S 1048 646 1166 635 S 1395 640 1486 640" />
+        <path class="route-branch" d="M 888 632 Q 909 665 950 694" />
+        <path class="route-branch" d="M 1486 640 Q 1642 593 1799 466" />
+        <path class="route-branch" d="M 1486 640 Q 1570 690 1666 825" />
+        <circle class="route-stop" cx="112" cy="375" r="11" />
+        <circle class="route-stop" cx="329" cy="383" r="10" />
+        <circle class="route-stop" cx="888" cy="632" r="10" />
+        <circle class="route-stop" cx="950" cy="694" r="9" />
+        <circle class="route-stop" cx="1166" cy="635" r="10" />
+        <circle class="route-stop" cx="1486" cy="640" r="12" />
+        <circle class="route-stop" cx="1799" cy="466" r="10" />
+      </g>
+      <g aria-label="Freewind Expanse label">
+        <rect class="region-tag" x="1041" y="359" rx="10" width="304" height="51" />
+        <text class="region-title" x="1193" y="394" text-anchor="middle">Freewind Expanse</text>
+      </g>
+    </svg>
+    <div class="map-key"><span class="dash" aria-hidden="true"></span><span>Grand Meridian</span><span class="note">· schematic trade corridor</span></div>
+    <aside id="routePanel" class="route-panel" aria-label="Trade route guide" hidden>
+      <button class="close" id="closeGuide" type="button" aria-label="Close route guide">×</button>
+      <h2>The Grand Meridian</h2>
+      <p>Dolnath's principal west–east trade artery, linking the High Elf region to the lake-trade cities and eastern settlements.</p>
+      <h3>West to east</h3>
+      <ol>
+        <li><button class="place" data-jump="ashel">Ashel Caelora</button></li>
+        <li><button class="place" data-jump="malelion">Malelion</button></li>
+        <li>Yavlaian <span class="muted">(exact image position unconfirmed)</span></li>
+        <li>Mythalyn <span class="muted">(exact image position unconfirmed)</span></li>
+        <li><button class="place" data-jump="shadegarde">Shadegarde</button> and <button class="place" data-jump="blackwharf">Blackwharf</button></li>
+        <li><button class="place" data-jump="riverbrook">Riverbrook</button></li>
+        <li><button class="place" data-jump="reedhaven">Reedhaven</button> — eastern junction</li>
+      </ol>
+      <h3>Branches beyond Reedhaven</h3>
+      <p>Northeast to <button class="place" data-jump="shiremire">Shiremire</button>; southeast toward Hill Dwarf territory.</p>
+      <h3>The Freewind Expanse</h3>
+      <p>The northern nomadic steppe is <strong>not</strong> on the main Grand Meridian. Secondary routes connect it to the southern commercial corridor.</p>
+      <div class="notice">The highlighted line illustrates the general trade corridor, not an exact surveyed road or guaranteed safe passage. The original map artwork is unchanged. The source artwork appears to label Yavlaian differently and does not clearly locate Mythalyn; their positions have not been guessed.</div>
+    </aside>
     <div id="loading" class="loading">Loading Dolnath map…</div>
     <div class="help"><span class="desktop-help">Scroll to zoom · Drag to explore · Double-click to zoom<br></span>Touch: drag to move · Pinch to zoom</div>
     <div id="minimap" class="minimap" title="Click to jump to a location on the map" aria-hidden="true">
@@ -87,6 +159,7 @@
   'use strict';
   const viewport = document.getElementById('viewport');
   const image = document.getElementById('mapImage');
+  const overlay = document.getElementById('mapOverlay');
   const loading = document.getElementById('loading');
   const zoomDisplay = document.getElementById('zoomDisplay');
   const minimap = document.getElementById('minimap');
@@ -110,6 +183,7 @@
     x = mapW <= w ? (w-mapW)/2 : clamp(x,w-mapW,0);
     y = mapH <= h ? (h-mapH)/2 : clamp(y,h-mapH,0);
     image.style.transform = `translate3d(${x}px,${y}px,0) scale(${scale})`;
+    overlay.style.transform = image.style.transform;
     zoomDisplay.textContent = `${Math.round(scale/fitScale*100)}%`;
     const miniW = minimap.clientWidth, miniH = minimap.clientHeight;
     const left = clamp(-x/scale,0,W), top = clamp(-y/scale,0,H);
@@ -142,6 +216,40 @@
   document.getElementById('zoomIn').addEventListener('click',()=>zoomCenter(1.5));
   document.getElementById('zoomOut').addEventListener('click',()=>zoomCenter(1/1.5));
   fitBtn.addEventListener('click',fitMap);
+  const toggleRoutes = document.getElementById('toggleRoutes');
+  const routeGroup = document.getElementById('routeGroup');
+  toggleRoutes.addEventListener('click',()=>{
+    const visible = routeGroup.hasAttribute('hidden');
+    if (visible) routeGroup.removeAttribute('hidden');
+    else routeGroup.setAttribute('hidden','');
+    toggleRoutes.setAttribute('aria-pressed',String(visible));
+    toggleRoutes.textContent = visible ? 'Hide route' : 'Show route';
+    document.querySelector('.map-key').hidden = !visible;
+  });
+  const routePanel = document.getElementById('routePanel');
+  const guideButton = document.getElementById('routeGuide');
+  function setGuide(open) {
+    routePanel.hidden = !open;
+    guideButton.setAttribute('aria-expanded',String(open));
+  }
+  guideButton.addEventListener('click',()=>setGuide(routePanel.hidden));
+  document.getElementById('closeGuide').addEventListener('click',()=>setGuide(false));
+  const anchors = {
+    ashel:[112,375], malelion:[329,383], shadegarde:[888,632],
+    blackwharf:[950,694], riverbrook:[1166,635], reedhaven:[1486,640],
+    shiremire:[1799,466]
+  };
+  routePanel.addEventListener('click',e=>{
+    const btn=e.target.closest('button[data-jump]');
+    if (!btn || !ready) return;
+    const pos=anchors[btn.dataset.jump];
+    if (!pos) return;
+    scale=Math.max(scale,fitScale*2.4);
+    const {w,h}=dims();
+    x=w/2-pos[0]*scale; y=h/2-pos[1]*scale;
+    render();
+    if (w<700) setGuide(false);
+  });
   fullBtn.addEventListener('click',async()=>{
     try {
       if (document.fullscreenElement) await document.exitFullscreen();
@@ -168,7 +276,7 @@
     return {cx:(a.x+b.x)/2,cy:(a.y+b.y)/2,dist:Math.hypot(a.x-b.x,a.y-b.y)};
   }
   viewport.addEventListener('pointerdown',e=>{
-    if (!ready || e.target.closest('.minimap')) return;
+    if (!ready || e.target.closest('.minimap, .route-panel')) return;
     if (e.pointerType==='mouse' && e.button!==0) return;
     viewport.setPointerCapture(e.pointerId);
     pointers.set(e.pointerId,local(e.clientX,e.clientY));
