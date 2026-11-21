@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#101d28">
   <meta name="description" content="Explore Dolnath, its named regions, and the Grand Meridian trade corridor.">
   <title>Explore Dolnath — Interactive Map</title>
-  <!-- Dolnath interactive map v4: region visibility fix, Nzambe River, source artwork labels preserved -->
+  <!-- Dolnath interactive map v5: Grand Meridian lakeside route correction; all v4 layers retained -->
   <style>
     :root { color-scheme: dark; --bg:#101d28; --panel:#172734; --panel-2:#203746; --line:#405666; --ink:#f3f0e8; --muted:#b9c5cb; --gold:#d8b77d; }
     * { box-sizing:border-box; }
@@ -124,21 +124,21 @@
     </nav>
   </header>
   <main id="viewport" class="viewport" tabindex="0" role="region" aria-label="Interactive map of Dolnath. Use the mouse wheel to zoom, drag to move, or use arrow keys and plus/minus keys.">
-    <img id="mapImage" class="map-image" src="new-dolnath-2k.png?v=20261120-v4" alt="Illustrated map of the world of Dolnath" draggable="false">
+    <img id="mapImage" class="map-image" src="new-dolnath-2k.png?v=20261120-v5" alt="Illustrated map of the world of Dolnath" draggable="false">
     <!-- Overlay coordinates use the latest 2048 × 1536 New Dolnath 2K source artwork. Routes are schematic,
          not surveyed roads. Only visually identified settlements are marked. -->
     <svg id="mapOverlay" class="map-overlay" viewBox="0 0 2048 1536" aria-hidden="true">
       <g id="routeGroup" class="route-group">
         <!-- Schematic only: now explicitly anchored at Yavalian (487,354) and Mythalon (714,519). -->
-        <path class="route-main" d="M 65 367 C 145 370 248 408 348 393 C 401 371 448 350 487 354 C 548 373 606 455 655 495 Q 683 518 714 519 C 782 553 847 596 890 622 Q 910 660 943 687 C 1000 674 1075 647 1153 646 S 1360 638 1485 636" />
+        <path class="route-main" d="M 65 367 C 145 370 248 408 348 393 C 401 371 448 350 487 354 C 548 373 606 455 655 495 Q 683 518 714 519 C 782 553 844 597 890 611 C 898 605 905 602 912 604 C 930 605 941 618 951 627 C 965 638 967 651 963 668 C 960 681 969 689 980 687 C 1015 675 1051 661 1080 656 C 1110 650 1131 648 1153 646 S 1360 638 1485 636" />
         <path class="route-branch" d="M 1485 636 C 1565 593 1674 529 1790 468" />
         <path class="route-branch" d="M 1485 636 C 1600 649 1723 711 1810 791 S 1912 954 1825 1110" />
         <circle class="route-stop" cx="65" cy="367" r="10" />
         <circle class="route-stop" cx="348" cy="393" r="10" />
         <circle class="route-stop" cx="487" cy="354" r="11" />
         <circle class="route-stop" cx="714" cy="519" r="11" />
-        <circle class="route-stop" cx="890" cy="622" r="10" />
-        <circle class="route-stop" cx="943" cy="687" r="9" />
+        <circle class="route-stop" cx="890" cy="611" r="10" />
+        <circle class="route-stop" cx="980" cy="687" r="9" />
         <circle class="route-stop" cx="1153" cy="646" r="10" />
         <circle class="route-stop" cx="1485" cy="636" r="12" />
         <circle class="route-stop" cx="1790" cy="468" r="10" />
@@ -259,7 +259,7 @@
     <div id="loading" class="loading">Loading Dolnath map…</div>
     <div class="help"><span class="desktop-help">Scroll to zoom · Drag to explore · Double-click to zoom<br></span>Touch: drag to move · Pinch to zoom</div>
     <div id="minimap" class="minimap" title="Click to jump to a location on the map" aria-hidden="true">
-      <img src="new-dolnath-2k.png?v=20261120-v4" alt="">
+      <img src="new-dolnath-2k.png?v=20261120-v5" alt="">
       <div id="miniWindow" class="mini-window"></div>
     </div>
   </main>
